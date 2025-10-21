@@ -1,0 +1,13 @@
+# Core dependencies
+numpy>=1.19.0
+matplotlib>=3.3.0
+PyQt5>=5.15.0
+h5py>=3.1.0
+scikit-image>=0.17.2
+scipy>=1.5.0
+imagecodecs>=2021.8.26  # Required for LZW and other image compression formats
+
+# Optional dependencies for specialized file formats
+# Uncomment these if you need to work with these file types
+# pySPM>=0.4.11  # For Bruker AFM files
+# ncempy>=1.6.0  # For Gatan DM3/DM4 files

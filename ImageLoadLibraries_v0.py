@@ -9,7 +9,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import skimage
 from skimage import io
-import pySPM
+
+# Try to import optional dependencies
+try:
+    import pySPM
+    PYSPM_AVAILABLE = True
+except ImportError:
+    PYSPM_AVAILABLE = False
+    print("Warning: pySPM module not found. Bruker AFM file support will be limited.")
 
 
 def GenericImageOpenTIFF(filename):
@@ -17,9 +24,18 @@ def GenericImageOpenTIFF(filename):
     Generic TIFF Open function
     '''      
     meta_data = {"e1":"TEST1","e2":"TEST"}
-    image_data = io.imread(filename)
-    image_data = skimage.img_as_float(image_data)
-    return image_data,meta_data
+    try:
+        image_data = io.imread(filename)
+        image_data = skimage.img_as_float(image_data)
+        return image_data, meta_data
+    except ModuleNotFoundError as e:
+        if 'imagecodecs' in str(e):
+            raise ImportError("The 'imagecodecs' package is required for loading this image format. Please install it with 'pip install imagecodecs'.")
+        else:
+            raise
+    except Exception as e:
+        raise Exception(f"Error loading image: {str(e)}")
+
 
 def HitachiSEMImageLoad(filename,meta_filename):
     '''
@@ -33,21 +49,29 @@ def HitachiSEMImageLoad(filename,meta_filename):
      
         
     '''    
-    meta_data = {}
-    with open(meta_filename) as f:
-        keys = []
-        values = []
-        next(f)
-        for line in f:
-            templine = line.strip("\n").split("=")
-            keys.append(templine[0])
-            values.append(templine[1])
-    meta_data = dict(zip(keys,values))   
-    
-    image_data = io.imread(filename)
-    image_data = skimage.img_as_float(image_data)
-    return image_data,meta_data
-    
+    try:
+        meta_data = {}
+        with open(meta_filename) as f:
+            keys = []
+            values = []
+            next(f)
+            for line in f:
+                templine = line.strip("\n").split("=")
+                keys.append(templine[0])
+                values.append(templine[1])
+        meta_data = dict(zip(keys,values))   
+        
+        image_data = io.imread(filename)
+        image_data = skimage.img_as_float(image_data)
+        return image_data, meta_data
+    except ModuleNotFoundError as e:
+        if 'imagecodecs' in str(e):
+            raise ImportError("The 'imagecodecs' package is required for loading this image format. Please install it with 'pip install imagecodecs'.")
+        else:
+            raise
+    except Exception as e:
+        raise Exception(f"Error loading Hitachi SEM image: {str(e)}")
+
 
 def QuantaSEMImageLoad(filename,meta_filename):
     '''
@@ -59,28 +83,35 @@ def QuantaSEMImageLoad(filename,meta_filename):
         - a text file with the COPIED metadata that is embedded at the end of the original tiff file. 
     
     '''
-    meta_data = {}
-    with open(meta_filename) as f:
-        keys = []
-        values = []
-        next(f)
-        for line in f:
-            templine = line.strip("\n").split("=")
-            print(templine)
-            try:
-                keys.append(templine[0])
-            except:
-                keys.append("")
-            try:
-                values.append(templine[1])
-            except:
-                values.append("")
-    meta_data = dict(zip(keys,values))
+    try:
+        meta_data = {}
+        with open(meta_filename) as f:
+            keys = []
+            values = []
+            next(f)
+            for line in f:
+                templine = line.strip("\n").split("=")
+                print(templine)
+                try:
+                    keys.append(templine[0])
+                except:
+                    keys.append("")
+                try:
+                    values.append(templine[1])
+                except:
+                    values.append("")
+        meta_data = dict(zip(keys,values))
 
-    image_data = io.imread(filename)
-    image_data = skimage.img_as_float(image_data)
-    return image_data,meta_data
-
+        image_data = io.imread(filename)
+        image_data = skimage.img_as_float(image_data)
+        return image_data, meta_data
+    except ModuleNotFoundError as e:
+        if 'imagecodecs' in str(e):
+            raise ImportError("The 'imagecodecs' package is required for loading this image format. Please install it with 'pip install imagecodecs'.")
+        else:
+            raise
+    except Exception as e:
+        raise Exception(f"Error loading Quanta SEM image: {str(e)}")
 
 
 def JEOL7900SEMImageLoad(filename,meta_filename):
@@ -92,53 +123,71 @@ def JEOL7900SEMImageLoad(filename,meta_filename):
         - The original TIFF (or other image format) as exported from the SEM
         - The metadata file (as exported by the SEM)   
     '''
-    meta_data = {}
-    with open(meta_filename) as f:
-        keys = []
-        values = []
-        for line in f:
-            templine = line.strip("\n").strip("$").split(" ")
-            if len(templine) <= 2:
-                tempValues = templine[-1]
-            else:
-                tempValues = [i for i in templine[1:]]
-            try:
-                keys.append(templine[0])
-            except:
-                keys.append("")
-            try:
-                values.append(tempValues)
-            except:
-                values.append("")
-    meta_data = dict(zip(keys,values))
-    
-    image_data = io.imread(filename)
-    image_data = skimage.img_as_float(image_data)
-    return image_data,meta_data
+    try:
+        meta_data = {}
+        with open(meta_filename) as f:
+            keys = []
+            values = []
+            for line in f:
+                templine = line.strip("\n").strip("$").split(" ")
+                if len(templine) <= 2:
+                    tempValues = templine[-1]
+                else:
+                    tempValues = [i for i in templine[1:]]
+                try:
+                    keys.append(templine[0])
+                except:
+                    keys.append("")
+                try:
+                    values.append(tempValues)
+                except:
+                    values.append("")
+        meta_data = dict(zip(keys,values))
+        
+        image_data = io.imread(filename)
+        image_data = skimage.img_as_float(image_data)
+        return image_data, meta_data
+    except ModuleNotFoundError as e:
+        if 'imagecodecs' in str(e):
+            raise ImportError("The 'imagecodecs' package is required for loading this image format. Please install it with 'pip install imagecodecs'.")
+        else:
+            raise
+    except Exception as e:
+        raise Exception(f"Error loading JEOL SEM image: {str(e)}")
 
 
 def BrukerAFMImageLoad(filename):
-    import pySPM
-    scan = pySPM.Bruker(filename)
-    meta_data = scan.layers[0]
-    new_meta_data ={}
-    for item in meta_data.items():
-        tempValue = item[1][0].decode('UTF-8')
-        print(tempValue)
-        new_meta_data[item[0].decode('UTF-8')]=tempValue   
+    if not PYSPM_AVAILABLE:
+        raise ImportError("pySPM module is required for loading Bruker AFM files but is not installed.")
+        
     try:
-        scan_data = scan.get_channel()
-    except:
-        scan_data = scan.get_channel(backward=True)
-    return scan_data.pixels, new_meta_data
+        scan = pySPM.Bruker(filename)
+        meta_data = scan.layers[0]
+        new_meta_data ={}
+        for item in meta_data.items():
+            tempValue = item[1][0].decode('UTF-8')
+            print(tempValue)
+            new_meta_data[item[0].decode('UTF-8')]=tempValue   
+        try:
+            scan_data = scan.get_channel()
+        except:
+            scan_data = scan.get_channel(backward=True)
+        return scan_data.pixels, new_meta_data
+    except Exception as e:
+        raise Exception(f"Error loading Bruker AFM image: {str(e)}")
+
 
 def dmImageLoad(filename):
-    from ncempy.io import dm
+    try:
+        from ncempy.io import dm
+        data = dm.dmReader(filename)
+        image_data = data['data'] 
+        return image_data, {"format": "DM"}
+    except ImportError:
+        raise ImportError("ncempy module is required for loading DM files but is not installed.")
+    except Exception as e:
+        raise Exception(f"Error loading DM image: {str(e)}")
 
-    data = dm.dmReader(filename)
-    image_data = im0['data'] 
-
-    return image_data
 
 def main():
     sharedLocation = "/Users/nathaniel_wk/Documents/NUANCE Files/NuScope/Sample File Formats/"
@@ -163,6 +212,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

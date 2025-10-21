@@ -1,0 +1,6 @@
+
+# Ignore python cache & compiled
+__pycache__/
+*.py[cod]
+# Ignore local hdf5 artifacts
+*.hdf5
