@@ -544,7 +544,9 @@ async function runTool(op, params) {
   const card = el("div", { class: "result" }, el("div", { class: "result-head" }, el("b", {}, TOOLS.find((t) => t.op === op)?.title || op), el("span", { class: "spinner" })));
   const results = $("#results"); $(".empty-note", results)?.remove(); results.prepend(card);
   $$("#ins-tabs button").find((b) => b.dataset.tab === "analyze").click();
-  const reveal = () => { const box = $("#ins-analyze"); box.scrollTop = card.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 8; };
+  const reveal = () => { const box = $("#ins-analyze");
+    if (box.scrollHeight <= box.clientHeight) return card.scrollIntoView({ block: "nearest" });   // narrow layout: the page scrolls
+    box.scrollTop = card.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 8; };
   reveal();
   try {
     const r = await post(`/api/ds/${s.id}/run`, { op, params, frame: S.frame });

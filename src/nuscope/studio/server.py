@@ -147,6 +147,13 @@ def create_app(root: str | Path = ".") -> FastAPI:
     root = Path(root).expanduser().resolve()
     exports = root / "nuscope_exports"
     app = FastAPI(title="NUScope Studio", version=__version__)
+
+    @app.middleware("http")
+    async def revalidate(request, call_next):   # pick up a new Studio version without a hard reload
+        resp = await call_next(request)
+        if not request.url.path.startswith("/api/"):
+            resp.headers["Cache-Control"] = "no-cache"
+        return resp
     items: dict[str, Item] = {}
     tables: dict[str, pd.DataFrame] = {}
 
