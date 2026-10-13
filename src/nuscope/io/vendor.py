@@ -179,8 +179,26 @@ def read_zeiss(path: Path, text: str):
     return _image(path), m, z, (ps, ps)
 
 
+# ------------------------------------------------------------------ burned-in data bars
+def detect_databar(img: np.ndarray, max_frac: float = 0.2) -> int:
+    """Number of rows at the bottom occupied by an info bar (black band with text),
+    0 if none. A bar row is mostly black; a thin white separator line counts too."""
+    a = img if img.ndim == 2 else img[..., 0]
+    h = a.shape[0]
+    lo, hi = np.percentile(a, (0.5, 99.5)) if a.size else (0, 255)
+    dark = (a <= lo + 0.03 * (hi - lo)).mean(1)
+    bright = (a >= hi - 0.03 * (hi - lo)).mean(1)
+    n = 0
+    for r in range(h - 1, int(h * (1 - max_frac)) - 1, -1):
+        if dark[r] > 0.55 or bright[r] > 0.9:
+            n += 1
+        else:
+            break
+    return n if int(0.02 * h) <= n <= int(max_frac * h) else 0
+
+
 # ------------------------------------------------------------------ Hitachi
-def read_hitachi(path: Path, side: Path):
+def read_hitachi(path: Path, side: Path, crop_databar: bool = True):
     text = side.read_text(errors="replace")
     sec = parse_ini(text)
     h = sec.get("SemImageFile") or next(iter(sec.values()), {})
@@ -198,8 +216,20 @@ def read_hitachi(path: Path, side: Path):
     md.put(m, "optics.magnification", md.number(h.get("Magnification")))
     md.put(m, "detector.name", h.get("SignalName"))
     md.put(m, "acquisition.datetime", " ".join(x for x in (h.get("Date"), h.get("Time")) if x) or None)
+    for k, key, f in (("x_mm", "StagePositionX", 1e-6), ("y_mm", "StagePositionY", 1e-6), ("z_mm", "StagePositionZ", 1e-6),
+                      ("rotation_deg", "StagePositionR", 1.0), ("tilt_deg", "StagePositionT", 1.0)):
+        v = md.number(h.get(key))
+        if v is not None:
+            md.put(m, f"sample.stage.{k}", round(v * f, 4))
+    md.put(m, "sample.name", h.get("SampleName") or None)
     ps = md.number(h.get("PixelSize"))
-    return _image(path), m, sec, (ps, ps)
+    img = _image(path)
+    if crop_databar and str(h.get("DataDisplayCombine", "0")).strip() == "1":
+        n = detect_databar(img)
+        if n:
+            img = img[: img.shape[0] - n]
+            md.put(m, "acquisition.databar_rows_removed", n)
+    return img, m, sec, (ps, ps)
 
 
 # ------------------------------------------------------------------ JEOL
@@ -251,7 +281,7 @@ def read_vendor_tiff(path: Path, crop_databar: bool = True):
     if side:
         head = side.read_text(errors="replace")[:4000]
         if "[SemImageFile]" in head or "InstructName" in head:
-            return (*read_hitachi(path, side), "hitachi")
+            return (*read_hitachi(path, side, crop_databar), "hitachi")
         if "$CM_" in head or "$SM_" in head:
             return (*read_jeol(path, side), "jeol")
         if "[User]" in head or "[Beam]" in head or "[Scan]" in head:

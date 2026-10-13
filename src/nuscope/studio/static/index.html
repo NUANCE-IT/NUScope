@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NUScope Studio</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+    NUScope <b>Studio</b>
+  </div>
+  <div class="chip" id="folder-chip" title="Data folder"></div>
+  <div class="crumb" id="crumb"></div>
+  <div class="top-actions">
+    <label class="btn" title="Open files from your computer">
+      <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4M5 20h14"/></svg><span>Open files</span>
+      <input id="file-input" type="file" multiple hidden>
+    </label>
+    <div class="menu">
+      <button id="save-btn" class="btn" disabled><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span>Save</span></button>
+      <div class="menu-list" hidden>
+        <button data-save="nxs"><b>NeXus / HDF5</b><small>.nxs · data, metadata and history</small></button>
+        <button data-save="tif"><b>TIFF</b><small>.tif · calibrated, metadata embedded</small></button>
+        <button data-save="zarr"><b>Zarr</b><small>.zarr · for very large data</small></button>
+      </div>
+    </div>
+    <div class="menu">
+      <button id="export-btn" class="btn" disabled><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m7 15 3-3 3 3 2-2 3 3"/></svg><span>Export figure</span></button>
+      <div class="menu-list" hidden>
+        <button data-fig="png"><b>PNG</b><small>300 dpi, with scale bar</small></button>
+        <button data-fig="pdf"><b>PDF</b><small>vector scale bar and labels</small></button>
+        <button data-fig="tif"><b>TIFF</b><small>300 dpi</small></button>
+        <button data-fig="svg"><b>SVG</b><small>for figure editing</small></button>
+      </div>
+    </div>
+    <button id="theme-btn" class="btn icon" title="Light or dark theme" aria-label="Switch theme"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
+  </div>
+</header>
+
+<aside id="library" aria-label="Library">
+  <div class="seg full" id="lib-tabs" role="tablist">
+    <button data-tab="folder" class="on">Folder</button>
+    <button data-tab="globus">Globus</button>
+    <button data-tab="open">Open <span id="open-count"></span></button>
+  </div>
+  <section id="lib-folder">
+    <input id="lib-search" type="search" placeholder="Search this folder" aria-label="Search files">
+    <nav id="lib-path" class="path" aria-label="Folder path"></nav>
+    <ul id="lib-list" class="files"></ul>
+  </section>
+  <section id="lib-globus" hidden>
+    <p class="hint" id="globus-hint"></p>
+    <label>Collection id <input id="g-coll" type="text" placeholder="e.g. 3f0a…-…" spellcheck="false"></label>
+    <label>Path <input id="g-path" type="text" value="/"></label>
+    <button id="g-browse" class="btn wide">Browse collection</button>
+    <ul id="g-list" class="files"></ul>
+  </section>
+  <section id="lib-open" hidden>
+    <p class="hint">Files you opened and the results made from them. Results stay linked to their source.</p>
+    <ul id="open-list" class="files tree"></ul>
+  </section>
+  <div id="dropzone"><svg viewBox="0 0 24 24"><path d="M12 15V4m0 0-4 4m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>Drop microscope files here</div>
+</aside>
+
+<main id="viewer" aria-label="Viewer">
+  <div id="welcome">
+    <div class="welcome-card">
+      <h1>Open a microscope file</h1>
+      <p>Pick a file from the folder on the left, drop one here, or open it from a Globus collection.
+        NUScope reads the calibration and metadata, and records everything you do as provenance.</p>
+      <div class="vendors">
+        <span>Thermo Fisher / FEI</span><span>Zeiss</span><span>Hitachi</span><span>JEOL</span><span>Gatan DM3/DM4</span>
+        <span>Velox EMD</span><span>TIA</span><span>Bruker</span><span>EDAX</span><span>MRC</span><span>+30 more</span></div>
+      <h2>In this folder</h2>
+      <ul id="recent" class="recent"></ul>
+    </div>
+  </div>
+  <div id="stage" hidden>
+    <div id="toolbar">
+      <div class="seg" id="tools" role="group" aria-label="Tool">
+        <button data-tool="pan" class="on" title="Move and zoom (scroll)"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3m3-3 3 3M12 21l-3-3m3 3 3-3M3 12l3-3m-3 3 3 3M21 12l-3-3m3 3-3 3"/></svg></button>
+        <button data-tool="line" title="Line profile (L)"><svg viewBox="0 0 24 24"><path d="M5 19 19 5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg></button>
+        <button data-tool="pick" id="pick-tool" title="Pick a spectrum or pattern (P)" hidden><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></button>
+      </div>
+      <div class="seg" role="group" aria-label="Zoom">
+        <button id="zoom-fit" title="Fit (F)">Fit</button><button id="zoom-1" title="One image pixel per screen pixel">1:1</button>
+        <button id="zoom-out" title="Zoom out (−)">−</button><button id="zoom-in" title="Zoom in (+)">+</button>
+      </div>
+      <select id="cmap" aria-label="Colour map">
+        <option value="gray">Grey</option><option value="purple">Northwestern</option><option value="inferno">Inferno</option>
+        <option value="magma">Magma</option><option value="viridis">Viridis</option><option value="cividis">Cividis</option>
+        <option value="fire">Fire</option></select>
+      <label class="toggle"><input id="show-scale" type="checkbox" checked> Scale bar</label>
+      <label class="toggle"><input id="show-cbar" type="checkbox"> Colour bar</label>
+      <label class="toggle" id="overlay-toggle" hidden><input id="show-overlay" type="checkbox" checked> Outlines</label>
+      <div id="frame-box" hidden><label>Frame <input id="frame" type="range" min="0" value="0"></label><span id="frame-label"></span></div>
+    </div>
+    <div id="canvas-wrap"><canvas id="cv"></canvas><div id="view-hint"></div></div>
+    <div id="dock">
+      <div id="display">
+        <canvas id="hist" height="64"></canvas>
+        <div class="dispctl">
+          <label>Min <input id="lo" type="number" step="any"></label>
+          <label>Max <input id="hi" type="number" step="any"></label>
+          <label>Gamma <input id="gamma" type="range" min="0.2" max="3" step="0.05" value="1"><output id="gamma-out">1.00</output></label>
+          <label class="toggle"><input id="log" type="checkbox"> Log</label>
+          <button id="auto" class="btn">Auto contrast</button>
+        </div>
+      </div>
+      <div id="pickpane" hidden><div class="pick-head"><b id="pick-title"></b><button id="pick-close" class="btn icon" aria-label="Close">×</button></div>
+        <div id="pick-body" class="chart"></div></div>
+    </div>
+  </div>
+</main>
+
+<aside id="inspector" aria-label="Inspector">
+  <div class="seg full" id="ins-tabs" role="tablist">
+    <button data-tab="info" class="on">Info</button><button data-tab="analyze">Analyze</button><button data-tab="history">History</button>
+  </div>
+  <section id="ins-info"><div class="empty-note">Open a file to see its calibration and metadata.</div></section>
+  <section id="ins-analyze" hidden>
+    <div id="tools-list"></div>
+    <h3 class="sec">Results</h3>
+    <div id="results"><div class="empty-note">Results of the tools above appear here.</div></div>
+  </section>
+  <section id="ins-history" hidden><div class="empty-note">The history of the open dataset appears here.</div></section>
+</aside>
+
+<footer id="status">
+  <span id="st-cursor">Hover over the image to read positions and values</span>
+  <span id="st-ds"></span>
+  <span class="st-right">NUScope · created by <a href="https://github.com/rmsreis" target="_blank" rel="noopener">Roberto dos Reis (@rmsreis)</a> · NUANCE Center, Northwestern University</span>
+</footer>
+
+<div id="modal" hidden><div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <h2 id="modal-title"></h2><div id="modal-body"></div>
+  <div class="modal-actions"><button id="modal-cancel" class="btn">Cancel</button><button id="modal-ok" class="btn primary">OK</button></div>
+</div></div>
+<div id="toasts" aria-live="polite"></div>
+
+<script src="charts.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -35,8 +35,31 @@ print("\n".join(img.provenance.lineage()))
 
 ```bash
 uv venv --python 3.12 && source .venv/bin/activate
-uv pip install -e ".[all]"        # core + Globus + plotting
+uv pip install -e ".[all]"        # core + Globus + Studio + plotting
 ```
+
+## NUScope Studio
+
+```bash
+nuscope studio /path/to/data --open
+```
+
+A browser application for the whole workflow, with no installation beyond the package. It runs on your own
+machine and nothing leaves it.
+
+- **Library**: browse and search a data folder, drop files from your computer, or browse a Globus collection.
+- **Viewer**: calibrated scale bar, colour bar, colour maps (including Northwestern purple), contrast with a
+  live histogram, gamma and log display, and position and value readout under the cursor. Stacks get a frame
+  slider. Spectrum images and 4D-STEM data show a summed image; click with the pick tool to see the spectrum or
+  diffraction pattern at that point.
+- **Info**: instrument, beam, optics, acquisition and sample cards from the normalized metadata, plus the full
+  original vendor metadata as a searchable tree.
+- **Analyze**: noise and contrast, denoise, background removal, Fourier transform, radial profile, particles
+  (with outlines drawn on the image), line profile, pixel-size correction and binning. Results that are images
+  open as new datasets linked to their source.
+- **History**: the provenance of the open dataset, its source files with SHA-256, and PROV-JSON download.
+- **Save and share**: `.nxs`, `.tif` or `.zarr`; figures as PNG, PDF, TIFF or SVG with scale bar; an RO-Crate
+  zip for a repository deposit. Exports go to `nuscope_exports/` in the data folder.
 
 ## Command line
 
@@ -67,7 +90,7 @@ Provenance of a Globus read records the collection id, the path, when it was fet
 
 ## Tests
 
-`pytest` runs 18 tests. They cover:
+`pytest` runs 20 tests. They cover:
 
 - the vendor readers on synthetic instrument files (Thermo Fisher with data bar, Quanta copied sidecar, Hitachi,
   JEOL, Zeiss) and MRC through RosettaSciIO;
@@ -76,7 +99,8 @@ Provenance of a Globus read records the collection id, the path, when it was fet
 - particle sizes and FFT periodicities against known geometry;
 - RO-Crate export;
 - the Globus listing, download, cache and transfer paths with mocked services;
-- the command line.
+- the command line;
+- the Studio web API (open, view, analyse, save, figure, RO-Crate).
 
 The readers have also been checked on real NUANCE files (Hitachi S-3400 TIFF + TXT, Gatan DM4 ADF, EELS SI
 and 4D diffraction).

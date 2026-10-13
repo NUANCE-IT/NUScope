@@ -5,6 +5,7 @@
     nuscope provenance <file> [--prov-json out.json]   history of a NUScope file
     nuscope crate <out folder> <files...> --title ...  RO-Crate package for a repository deposit
     nuscope formats                                    supported formats
+    nuscope studio [folder] [--port 8770] [--open]     browser application
     nuscope globus setup <client-id> | login [collection...] | ls <collection> [path] | get <url> [dest]
                    | transfer <src-url> <dst-url> [--recursive]
 
@@ -54,6 +55,11 @@ def main(argv=None) -> int:
     p.add_argument("--description", default="")
     p.add_argument("--author", action="append", default=[], help="'Name' or 'Name|https://orcid.org/...'")
     sub.add_parser("formats", help="list supported formats")
+    p = sub.add_parser("studio", help="launch NUScope Studio in the browser")
+    p.add_argument("folder", nargs="?", default=".")
+    p.add_argument("--port", type=int, default=8770)
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--open", action="store_true", help="open the browser")
     g = sub.add_parser("globus", help="Globus: setup, login, list, download, transfer")
     gs = g.add_subparsers(dest="gcmd", required=True)
     x = gs.add_parser("setup", help="store the NUScope Globus client id")
@@ -94,6 +100,9 @@ def main(argv=None) -> int:
         out = write_crate([ns.load(f) for f in a.files], a.folder, title=a.title, description=a.description,
                           authors=authors)
         print(f"RO-Crate → {out}")
+    elif a.cmd == "studio":
+        from .studio import serve
+        serve(a.folder, host=a.host, port=a.port, open_browser=a.open)
     elif a.cmd == "formats":
         print("\n".join(ns.formats()))
     elif a.cmd == "globus":

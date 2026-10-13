@@ -107,6 +107,9 @@ def save(ds: Dataset, path, *, overwrite: bool = False, compression: Optional[st
     if path.exists() and not overwrite:
         raise FileExistsError(f"{path} exists (pass overwrite=True)")
     ext = path.suffix.lower()
+    if ext not in (".nxs", ".h5", ".hdf5", ".nsh5", ".zarr", ".tif", ".tiff"):
+        raise ValueError("save to .nxs, .h5, .zarr or .tif")
+    path.parent.mkdir(parents=True, exist_ok=True)
     started = now()
     ds.provenance.record(f"io.save{ext}", {"path": path.name}, used=[ds.provenance.current] if ds.provenance.current else [],
                          started=started)
@@ -116,8 +119,6 @@ def save(ds: Dataset, path, *, overwrite: bool = False, compression: Optional[st
         _write_zarr(ds, path)
     elif ext in (".tif", ".tiff"):
         _write_tiff(ds, path)
-    else:
-        raise ValueError("save to .nxs, .h5, .zarr or .tif")
     return path
 
 

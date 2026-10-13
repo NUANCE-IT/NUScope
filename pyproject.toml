@@ -34,9 +34,10 @@ dependencies = [
 
 [project.optional-dependencies]
 globus = ["globus-sdk>=3.46"]
+studio = ["fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "matplotlib>=3.7", "imageio>=2.30"]
 plot = ["matplotlib>=3.7"]
-dev = ["pytest", "globus-sdk>=3.46", "matplotlib", "mrcfile"]
-all = ["globus-sdk>=3.46", "matplotlib>=3.7", "mrcfile"]
+dev = ["pytest", "httpx", "globus-sdk>=3.46", "matplotlib", "mrcfile", "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "imageio>=2.30"]
+all = ["globus-sdk>=3.46", "matplotlib>=3.7", "mrcfile", "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "imageio>=2.30"]
 
 [project.urls]
 Homepage = "https://github.com/NUANCE-IT/NUScope"
@@ -47,6 +48,7 @@ nuscope = "nuscope.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nuscope"]
+artifacts = ["src/nuscope/studio/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

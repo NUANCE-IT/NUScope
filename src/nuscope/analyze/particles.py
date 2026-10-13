@@ -70,6 +70,8 @@ def particles(ds: Dataset, method: str = "otsu", dark: bool = False, min_area_nm
                      "orientation_deg": np.degrees(r.orientation), "mean_intensity": r.intensity_mean,
                      "centroid_y_nm": r.centroid[0] * ps, "centroid_x_nm": r.centroid[1] * ps})
     df = pd.DataFrame(rows)
+    kept = np.isin(lab, df["label"].to_numpy()) if len(df) else np.zeros(lab.shape, bool)
+    df.attrs["labels"] = np.where(kept, lab, 0).astype(np.int32)   # for overlays (Studio)
     df.attrs["units"] = "nm" if ds.pixel_size_nm else "px"
     df.attrs["area_fraction"] = float(m.mean())
     return df

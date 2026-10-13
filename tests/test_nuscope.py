@@ -328,3 +328,57 @@ def test_gatan_tag_mapping():
     assert m["optics"] == {"magnification": 60000.0, "camera_length_mm": 30.0}
     assert m["acquisition"]["dwell_us"] == 16 and m["acquisition"]["operator"] == "mb" and m["sample"]["name"] == "A12"
     assert m["detector"]["collection_semiangle_mrad"] == 50 and m["detector"]["name"] == "EELS"
+
+
+def test_hitachi_burned_in_databar_is_removed(tmp_path):
+    img = disks((240, 320))
+    img[216:] = 0                                   # black info bar with white text
+    img[226:232, 20:120] = 255
+    p = tmp_path / "s3400.tif"
+    tifffile.imwrite(p, img)
+    (tmp_path / "s3400.txt").write_text("[SemImageFile]\nInstructName=S-3400\nDataSize=320x240\nPixelSize=396.875\n"
+                                        "DataDisplayCombine=1\nStagePositionX=44146000\n")
+    d = ns.load(p)
+    assert d.shape == (216, 320) and d.metadata["acquisition"]["databar_rows_removed"] == 24
+    assert d.metadata["sample"]["stage"]["x_mm"] == pytest.approx(44.146)
+    assert ns.load(p, crop_databar=False).shape == (240, 320)
+
+
+def test_studio_api(tmp_path):
+    """Open, view, analyse, save and package through the Studio web API."""
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+    from nuscope.studio.server import create_app
+
+    rng = np.random.default_rng(0)
+    img = (rng.normal(100, 5, (64, 96)) + 60 * (np.indices((64, 96)).sum(0) % 16 < 8)).astype(np.float32)
+    ns.save(ns.Dataset.from_array(img, pixel_size_nm=2.5, name="grid"), tmp_path / "data" / "grid.nxs")
+    c = TestClient(create_app(tmp_path / "data"))
+
+    lib = c.get("/api/library").json()
+    assert any(e["name"] == "grid.nxs" for e in lib["entries"])
+    first = c.post("/api/open", json={"path": "grid.nxs"}).json()
+    assert first[0]["view"]["kind"] == "image"
+    i = first[0]["id"]
+    assert c.post("/api/open", json={"path": "grid.nxs"}).json()[0]["id"] == i   # reopen reuses
+    assert c.get("/api/session").json()[0]["id"] == i
+    r = c.get(f"/api/ds/{i}/image")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+
+    stats = c.post(f"/api/ds/{i}/run", json={"op": "stats", "params": {}}).json()
+    assert stats["kind"] == "values" and stats["values"]["mean"] > 0
+    lp = c.post(f"/api/ds/{i}/run", json={"op": "line_profile",
+                                         "params": {"start": [10, 0], "end": [10, 95], "width": 3}}).json()
+    assert lp["kind"] == "table" and abs(lp["rows"][-1][0] - 95 * 2.5) < 3
+    fft = c.post(f"/api/ds/{i}/run", json={"op": "fft", "params": {}}).json()
+    assert fft["kind"] == "dataset" and fft["dataset"]["parent"] == i
+
+    saved = c.post(f"/api/ds/{i}/save", json={"format": "tif"}).json()
+    assert (tmp_path / "data" / saved["path"]).exists()
+    fig = c.get(f"/api/ds/{i}/figure", params={"fmt": "png", "scalebar": "true"})
+    assert fig.status_code == 200 and fig.content[:4] == b"\x89PNG"
+    prov = c.get(f"/api/ds/{i}/prov.json").json()
+    assert "activity" in prov
+    crate = c.post("/api/crate", json={"ids": [i], "title": "grid test"}).json()
+    assert c.get(crate["download"]).status_code == 200
+    assert c.get("/api/file", params={"path": "../../etc/passwd"}).status_code in (400, 403, 404)
