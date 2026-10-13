@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nuscope"
+version = "0.2.0"
+description = "Read, analyze, save and trace electron-microscopy data at the NUANCE Center, Northwestern University"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Roberto dos Reis", email = "robertomsreis@gmail.com" }]
+maintainers = [{ name = "Roberto dos Reis (@rmsreis)" }]
+keywords = ["electron microscopy", "SEM", "TEM", "STEM", "FIB", "EDS", "provenance", "FAIR", "Globus", "NUANCE"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "scikit-image>=0.21",
+    "PyWavelets>=1.4",
+    "pandas>=2.0",
+    "tifffile>=2023.7",
+    "imagecodecs>=2023.1",
+    "h5py>=3.8",
+    "zarr>=3.0",
+    "rosettasciio>=0.6",
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+globus = ["globus-sdk>=3.46"]
+plot = ["matplotlib>=3.7"]
+dev = ["pytest", "globus-sdk>=3.46", "matplotlib", "mrcfile"]
+all = ["globus-sdk>=3.46", "matplotlib>=3.7", "mrcfile"]
+
+[project.urls]
+Homepage = "https://github.com/NUANCE-IT/NUScope"
+Author = "https://github.com/rmsreis"
+
+[project.scripts]
+nuscope = "nuscope.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nuscope"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

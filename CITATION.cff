@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use NUScope in your research, please cite it as below."
+title: "NUScope: reading, analysis and provenance for electron-microscopy data at the NUANCE Center"
+type: software
+version: 0.2.0
+license: MIT
+repository-code: "https://github.com/NUANCE-IT/NUScope"
+authors:
+  - family-names: "dos Reis"
+    given-names: "Roberto"
+    alias: "rmsreis"
+    affiliation: "NUANCE Center, Northwestern University"
+  - family-names: "Kabat"
+    given-names: "Nathaniel"
+    alias: "nwk5405"
+    affiliation: "NUANCE Center, Northwestern University"
+keywords: ["electron microscopy", "provenance", "FAIR data", "Globus", "NUANCE"]
