@@ -48,6 +48,10 @@ Author = "https://github.com/rmsreis"
 [project.scripts]
 nuscope = "nuscope.cli:main"
 
+# NUANCE-MCP loads NUScope's tools and saves every acquisition as a sealed .h5 (see nuscope.mcp)
+[project.entry-points."nuance_mcp.plugins"]
+nuscope = "nuscope.mcp:register"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/nuscope"]
 artifacts = ["src/nuscope/studio/static/*"]

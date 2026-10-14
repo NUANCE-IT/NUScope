@@ -530,5 +530,46 @@ def test_nuscope_03_key_is_imported(tmp_path, keyhome):
                                                         serialization.PublicFormat.Raw)).decode()
     (kd / "nuscope_ed25519.pub.json").write_text(json.dumps(
         {"name": "Ada Lovelace", "orcid": None, "public_key": pub, "fingerprint": identity.fingerprint(pub)}))
+    assert ns.integrity.my_key() is None                  # custom home: no implicit import
+    identity.import_legacy()
     assert ns.integrity.my_key().fingerprint == identity.fingerprint(pub)
     assert ns.verify(ns.save(_sample(tmp_path), tmp_path / "s.h5")).status == "signed"
+
+
+# ------------------------------------------------------------------ NUANCE-MCP plugin (fake server, no MCP needed)
+class _FakeMCP:
+    def __init__(self):
+        self.tools = {}
+
+    def tool(self, name):
+        def deco(fn):
+            self.tools[name] = fn
+            return fn
+        return deco
+
+
+def test_nuance_mcp_plugin(tmp_path, keyhome, monkeypatch):
+    from types import SimpleNamespace
+    from nuscope import mcp as plugin
+    monkeypatch.setenv("NUSCOPE_ACQUISITION_DIR", str(tmp_path / "acq"))
+    ns.integrity.create_key("Ada Lovelace", orcid="0000-0002-1825-0097")
+    ctx = SimpleNamespace(mcp=_FakeMCP(), hooks=[])
+    ctx.on_acquisition = ctx.hooks.append
+    plugin.register(ctx)
+    img = SimpleNamespace(data=disks((64, 80)), name="SimSTEM", pixel_size_nm=0.02, pixel_unit="nm",
+                          exposure_s=0.1, tags={"signals": [0]})
+    inst = {"vendor": "Gatan", "model": "GMS 3.60", "state": {"high_tension_kV": 200.0, "magnification": 5e6}}
+    out = ctx.hooks[0](tool="acquire_stem", params={"dwell_us": 2.0}, result=img, instrument=inst)
+    assert out["integrity"] == "signed" and out["signed_by"][0].startswith("Ada Lovelace")
+    d = ns.load(out["file"])
+    assert d.pixel_size_nm == pytest.approx(0.02) and d.metadata["beam"]["voltage_kV"] == 200.0
+    assert d.metadata["acquisition"]["operator"] == "Ada Lovelace" and d.metadata["technique"] == "STEM"
+    t = ctx.mcp.tools
+    assert t["nuscope_verify"](out["file"])["status"] == "signed"
+    st = t["nuscope_analyze"](out["file"], "stats")
+    assert st["result"]["mean"] > 0
+    assert t["nuscope_analyze"](out["file"], "nope")["error"].startswith("unknown op")
+    spec = SimpleNamespace(counts=np.arange(100.0), energy_eV=np.linspace(-5, 94, 100), name="EELS",
+                           dispersion_eV_per_ch=1.0, exposure_s=0.5, tags={})
+    e = ctx.hooks[0](tool="acquire_eels", params={}, result=spec, instrument={"vendor": "Gatan", "model": "GIF"})
+    assert t["nuscope_describe"](e["file"])["axes"][0] == {"name": "energy", "size": 100, "scale": 1.0, "units": "eV"}
