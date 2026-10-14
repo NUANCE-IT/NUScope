@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 — 2026-10-14
+
+- Requires Python 3.11 or newer: Zarr 3, which NUScope uses, does not install on 3.10. NUScope 0.4.0
+  declared 3.10 by mistake.
+
 ## 0.4.0 — 2026-10-13
 
 - **Shared identity.** Signing uses the researcher identity of EMDataBridge (name, validated ORCID iD,

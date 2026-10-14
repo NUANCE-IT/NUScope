@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nuscope"
-version = "0.4.0"
+version = "0.4.1"
 description = "Read, analyze, save and trace electron-microscopy data at the NUANCE Center, Northwestern University"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"   # zarr 3 needs 3.11
 authors = [{ name = "Roberto dos Reis", email = "robertomsreis@gmail.com" }]
 maintainers = [{ name = "Roberto dos Reis (@rmsreis)" }]
 keywords = ["electron microscopy", "SEM", "TEM", "STEM", "FIB", "EDS", "provenance", "FAIR", "Globus", "NUANCE"]
@@ -18,7 +18,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Physics",

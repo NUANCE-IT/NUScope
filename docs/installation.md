@@ -1,6 +1,6 @@
 # Installation
 
-NUScope needs Python 3.10 or newer.
+NUScope needs Python 3.11 or newer (Zarr 3 requires it).
 
 ```bash
 pip install nuscope                  # core: readers, analysis, saving, provenance, integrity
