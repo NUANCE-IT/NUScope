@@ -391,7 +391,9 @@ def test_studio_api(tmp_path):
 def keyhome(tmp_path, monkeypatch):
     """Every test gets its own NUScope home, so no real signing key is ever read or written."""
     monkeypatch.setenv("NUSCOPE_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("EMDATABRIDGE_HOME", str(tmp_path / "home"))
     monkeypatch.delenv("NUSCOPE_KEY_PASSPHRASE", raising=False)
+    monkeypatch.delenv("EMDATABRIDGE_KEY_PASSPHRASE", raising=False)
     return tmp_path / "home"
 
 
@@ -444,8 +446,9 @@ def test_h5_is_plain_hdf5_with_seal_summary(tmp_path, keyhome):
 
 def test_signed_seal_and_tampering(tmp_path, keyhome):
     import h5py
-    k = ns.integrity.create_key("Ada Lovelace", orcid="https://orcid.org/0000-0000-0000-0000")
-    assert (keyhome / "keys" / "nuscope_ed25519.pem").stat().st_mode & 0o077 == 0     # private key: owner only
+    k = ns.integrity.create_key("Ada Lovelace", orcid="0000-0002-1825-0097")
+    from EMDataBridge import identity
+    assert (identity.key_dir() / identity.KEY_FILE).stat().st_mode & 0o077 == 0     # private key: owner only
     out = ns.save(_sample(tmp_path), tmp_path / "s.h5")
     r = ns.verify(out)
     assert r.status == "signed" and r.signatures[0]["fingerprint"] == k.fingerprint and r.signatures[0]["trusted"]
@@ -476,14 +479,14 @@ def test_signed_seal_and_tampering(tmp_path, keyhome):
 def test_cosign_and_trust(tmp_path, keyhome, monkeypatch):
     ns.integrity.create_key("Ada Lovelace")
     out = ns.save(_sample(tmp_path), tmp_path / "s.tif")
-    monkeypatch.setenv("NUSCOPE_HOME", str(tmp_path / "facility"))
+    monkeypatch.setenv("EMDATABRIDGE_HOME", str(tmp_path / "facility"))
     fac = ns.integrity.create_key("NUANCE facility")
     r = ns.integrity.cosign(out, role="facility")
     assert [s["name"] for s in r.signatures] == ["Ada Lovelace", "NUANCE facility"] and r.status == "signed"
     assert [s["trusted"] for s in r.signatures] == [False, True]   # Ada's key is unknown here
     with pytest.raises(ValueError):
         ns.integrity.cosign(out)                                   # one signature per key
-    monkeypatch.setenv("NUSCOPE_HOME", str(keyhome))
+    monkeypatch.setenv("EMDATABRIDGE_HOME", str(keyhome))
     ns.integrity.trust(fac.to_dict())
     assert all(s["trusted"] for s in ns.verify(out).signatures)
     assert ns.load(out).numpy().shape == (48, 64)
@@ -497,5 +500,35 @@ def test_cli_verify_sign_keys(tmp_path, keyhome, capsys):
     assert main(["convert", str(src), str(tmp_path / "q.h5")]) == 0
     assert main(["verify", str(tmp_path / "q.h5")]) == 0
     assert "SIGNED AND INTACT" in capsys.readouterr().out
-    assert main(["keys", "export", str(tmp_path / "ada.pub.json")]) == 0
-    assert json.loads((tmp_path / "ada.pub.json").read_text())["name"] == "Ada Lovelace"
+    assert main(["keys", "export", str(tmp_path / "ada.json")]) == 0
+    assert json.loads((tmp_path / "ada.json").read_text())["name"] == "Ada Lovelace"
+
+
+def test_identity_is_shared_with_emdatabridge(tmp_path, keyhome):
+    """A key made with `emdb identity create` signs NUScope files, and appears as the person in provenance."""
+    from EMDataBridge import identity
+    me = identity.create("Ada Lovelace", orcid="0000-0002-1825-0097")
+    d = _sample(tmp_path)
+    person = next(a for a in d.provenance.agents.values() if a.kind == "person")
+    assert person.orcid == "https://orcid.org/0000-0002-1825-0097" and person.name == "Ada Lovelace"
+    r = ns.verify(ns.save(d, tmp_path / "s.h5"))
+    assert r.signatures[0]["fingerprint"] == me.fingerprint and r.signatures[0]["trusted"]
+
+
+def test_nuscope_03_key_is_imported(tmp_path, keyhome):
+    """Keys created by NUScope 0.3 in ~/.nuscope/keys keep working through EMDataBridge."""
+    import base64
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+    from EMDataBridge import identity
+    kd = keyhome / "keys"; kd.mkdir(parents=True)
+    sk = ed25519.Ed25519PrivateKey.generate()
+    (kd / "nuscope_ed25519.pem").write_bytes(sk.private_bytes(serialization.Encoding.PEM,
+                                                              serialization.PrivateFormat.PKCS8,
+                                                              serialization.NoEncryption()))
+    pub = base64.b64encode(sk.public_key().public_bytes(serialization.Encoding.Raw,
+                                                        serialization.PublicFormat.Raw)).decode()
+    (kd / "nuscope_ed25519.pub.json").write_text(json.dumps(
+        {"name": "Ada Lovelace", "orcid": None, "public_key": pub, "fingerprint": identity.fingerprint(pub)}))
+    assert ns.integrity.my_key().fingerprint == identity.fingerprint(pub)
+    assert ns.verify(ns.save(_sample(tmp_path), tmp_path / "s.h5")).status == "signed"

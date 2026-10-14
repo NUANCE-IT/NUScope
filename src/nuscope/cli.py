@@ -5,7 +5,8 @@
     nuscope provenance <file> [--prov-json out.json]   history of a NUScope file
     nuscope verify <files...>                          check seals, hash chains and signatures
     nuscope sign <files...> [--role ...]               add your signature to sealed files
-    nuscope keys create "Name" [--orcid ...] | show | export <file> | trust <file.pub.json> | list
+    nuscope keys create "Name" [--orcid ...] | show | export <file> | trust <file.json> | untrust <fp> | list
+                   (your EMDataBridge identity; same as `emdb identity ...`)
     nuscope crate <out folder> <files...> --title ...  RO-Crate package for a repository deposit
     nuscope formats                                    supported formats
     nuscope studio [folder] [--port 8770] [--open]     browser application
@@ -64,8 +65,10 @@ def main(argv=None) -> int:
     ks.add_parser("show", help="your public key and fingerprint")
     x = ks.add_parser("export", help="write your public key to share with others")
     x.add_argument("file")
-    x = ks.add_parser("trust", help="trust a public key someone shared (.pub.json)")
+    x = ks.add_parser("trust", help="trust a public key someone shared (.json)")
     x.add_argument("file")
+    x = ks.add_parser("untrust", help="remove a key from your trusted list")
+    x.add_argument("fingerprint")
     ks.add_parser("list", help="keys you trust")
     p = sub.add_parser("provenance", help="show the history of a NUScope file")
     p.add_argument("source")
@@ -159,9 +162,10 @@ def _run(a) -> int:
 def _keys(a) -> int:
     from . import integrity as ni
     if a.kcmd == "create":
+        from EMDataBridge import identity
         k = ni.create_key(a.name, orcid=a.orcid, overwrite=a.overwrite)
-        print(f"created key {k.fingerprint} for {k.name}\nprivate key: {ni.home() / 'keys' / ni.KEY_FILE} (keep it safe)"
-              "\nshare your public key with: nuscope keys export my_key.pub.json")
+        print(f"created key {k.fingerprint} for {k}\nprivate key: {identity.key_dir() / identity.KEY_FILE} (keep it safe)"
+              "\nshare your public key with: nuscope keys export me.json")
     elif a.kcmd in ("show", "export"):
         k = ni.my_key()
         if k is None:
@@ -173,8 +177,9 @@ def _keys(a) -> int:
         else:
             print(f"{k.name}{f' ({k.orcid})' if k.orcid else ''}\nfingerprint {k.fingerprint}\npublic key  {k.public_key}")
     elif a.kcmd == "trust":
-        k = ni.trust(a.file)
-        print(f"trusted {k.name} [{k.fingerprint}]")
+        print(f"trusted {ni.trust(a.file)}")
+    elif a.kcmd == "untrust":
+        print("removed" if ni.untrust(a.fingerprint) else "not in your trusted list")
     elif a.kcmd == "list":
         for fp, k in ni.trusted().items():
             print(f"{fp}  {k['name']}{'  ' + k['orcid'] if k.get('orcid') else ''}")

@@ -130,6 +130,16 @@ class Activity:
 
 
 def _current_person() -> Agent:
+    """The person doing the work: your EMDataBridge identity when you have one, else the login name."""
+    try:
+        from EMDataBridge import identity
+        me = identity.me()
+    except Exception:
+        me = None
+    if me is not None:
+        pid = me.orcid.rsplit("/", 1)[-1] if me.orcid else me.fingerprint
+        return Agent(id=f"person:{pid}", kind="person", name=me.name, orcid=me.orcid,
+                     attributes={"key_fingerprint": me.fingerprint})
     user = os.environ.get("NUSCOPE_USER") or getpass.getuser()
     return Agent(id=f"person:{user}", kind="person", name=os.environ.get("NUSCOPE_USER_NAME", user),
                  orcid=os.environ.get("NUSCOPE_ORCID"))

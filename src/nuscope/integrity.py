@@ -8,48 +8,40 @@ Every file NUScope saves carries a **seal**, a manifest of SHA-256 hashes of
 * the full provenance record, whose steps also form a hash chain
   (see :mod:`nuscope.provenance`).
 
-The seal can be **signed** with Ed25519 keys. A person creates a key once
-(``nuscope keys create``); the private key stays in ``~/.nuscope/keys`` and the
-public key travels inside every signature. Others can add their own
-signature to the same seal, for example a facility manager countersigning
-an acquisition (``nuscope sign``). Keys are trusted by adding them to
-``~/.nuscope/trusted_keys.json`` (``nuscope keys trust``); your own key is
-trusted automatically.
+The seal can be **signed**. Signing uses the researcher identity of
+:mod:`EMDataBridge.identity`, shared with NUScope-TOMO and NUANCE-MCP: a name,
+a validated ORCID iD and an Ed25519 key, created once with
+``emdb identity create`` (or ``nuscope keys create``). The private key stays on
+your computer; the public key travels inside every signature. Others can add
+their own signature to the same seal, for example a facility manager
+countersigning an acquisition (``nuscope sign``). Keys are trusted with
+``emdb identity trust``; your own key is trusted automatically.
 
 Reading a file verifies it: :attr:`Dataset.integrity` holds the report, a
 warning is raised if anything changed after sealing, and the result is
 recorded in the provenance of the reopened dataset.
 
     import nuscope as ns
-    ns.integrity.create_key("Roberto dos Reis", orcid="https://orcid.org/...")
+    ns.integrity.create_key("Your Name", orcid="0000-0002-1825-0097")
     ns.save(ds, "grain.h5")              # sealed and signed
     print(ns.verify("grain.h5"))         # data, metadata, history, signatures
 """
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import numpy as np
+from EMDataBridge import identity
+from EMDataBridge.identity import Identity, fingerprint  # noqa: F401  (re-exported)
 
-from .provenance import Provenance, canonical, now, sha256_json
+from .provenance import Provenance, now, sha256_json
 
 SEAL_SCHEMA = "nuscope.seal/1"
-KEY_FILE = "nuscope_ed25519.pem"
-PUB_FILE = "nuscope_ed25519.pub.json"
-
-
-def home() -> Path:
-    return Path(os.environ.get("NUSCOPE_HOME", Path.home() / ".nuscope")).expanduser()
-
-
-def _b64(b: bytes) -> str:
-    return base64.b64encode(b).decode()
+KeyInfo = Identity   # NUScope 0.3 name
 
 
 # ------------------------------------------------------------------ hashing
@@ -83,109 +75,32 @@ def seal_id(seal: dict) -> str:
     return sha256_json(seal["manifest"])
 
 
-# ------------------------------------------------------------------ keys
-@dataclass
-class KeyInfo:
-    name: str
-    orcid: Optional[str]
-    public_key: str          # base64 raw Ed25519 public key
-    fingerprint: str
-    created: str = ""
-
-    def to_dict(self) -> dict:
-        return dict(vars(self))
-
-
-def fingerprint(public_key_b64: str) -> str:
-    """Short, readable key id: SHA-256 of the raw public key, 16 hex digits in groups of four."""
-    h = hashlib.sha256(base64.b64decode(public_key_b64)).hexdigest()[:16]
-    return ":".join(h[i:i + 4] for i in range(0, 16, 4))
-
-
-def _crypto():
-    try:
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric import ed25519
-        return serialization, ed25519
-    except ImportError as e:  # pragma: no cover
-        raise ImportError("Signing needs the 'cryptography' package: pip install cryptography") from e
-
-
+# ------------------------------------------------------------------ keys (EMDataBridge identity)
 def create_key(name: str, orcid: Optional[str] = None, *, passphrase: Optional[str] = None,
-               overwrite: bool = False) -> KeyInfo:
-    """Create your Ed25519 signing key in ``~/.nuscope/keys`` (private key readable only by you)."""
-    serialization, ed25519 = _crypto()
-    kdir = home() / "keys"
-    if (kdir / KEY_FILE).exists() and not overwrite:
-        raise FileExistsError(f"a key already exists in {kdir} (pass overwrite=True to replace it)")
-    kdir.mkdir(parents=True, exist_ok=True)
-    os.chmod(kdir, 0o700)
-    sk = ed25519.Ed25519PrivateKey.generate()
-    passphrase = passphrase or os.environ.get("NUSCOPE_KEY_PASSPHRASE")
-    enc = (serialization.BestAvailableEncryption(passphrase.encode()) if passphrase
-           else serialization.NoEncryption())
-    pem = sk.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, enc)
-    fd = os.open(kdir / KEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "wb") as f:
-        f.write(pem)
-    pub = _b64(sk.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw))
-    info = KeyInfo(name=name, orcid=orcid or None, public_key=pub, fingerprint=fingerprint(pub), created=now())
-    (kdir / PUB_FILE).write_text(json.dumps(info.to_dict(), indent=2))
-    trust(info)
-    return info
+               overwrite: bool = False) -> Identity:
+    """Create your identity and signing key (see :func:`EMDataBridge.identity.create`)."""
+    return identity.create(name, orcid=orcid, passphrase=passphrase, overwrite=overwrite)
 
 
-def my_key() -> Optional[KeyInfo]:
-    """Your public key information, or None if you have not created a key."""
-    p = home() / "keys" / PUB_FILE
-    if not (p.exists() and (home() / "keys" / KEY_FILE).exists()):
-        return None
-    return KeyInfo(**json.loads(p.read_text()))
+def my_key() -> Optional[Identity]:
+    """Your identity, or None if you have not created one."""
+    return identity.me()
 
 
-def _private_key(passphrase: Optional[str] = None):
-    serialization, _ = _crypto()
-    passphrase = passphrase or os.environ.get("NUSCOPE_KEY_PASSPHRASE")
-    pem = (home() / "keys" / KEY_FILE).read_bytes()
-    return serialization.load_pem_private_key(pem, password=passphrase.encode() if passphrase else None)
-
-
-def trusted() -> dict[str, dict]:
-    p = home() / "trusted_keys.json"
-    return json.loads(p.read_text()) if p.exists() else {}
-
-
-def trust(key: KeyInfo | dict | str | Path) -> KeyInfo:
-    """Trust a public key: a KeyInfo, its dict, or a ``.pub.json`` file someone shared with you."""
-    if isinstance(key, (str, Path)):
-        key = json.loads(Path(key).read_text())
-    if isinstance(key, dict):
-        key = KeyInfo(**{k: key.get(k) for k in ("name", "orcid", "public_key", "fingerprint", "created")})
-    if fingerprint(key.public_key) != key.fingerprint:
-        raise ValueError("the fingerprint does not match the public key")
-    t = trusted()
-    t[key.fingerprint] = key.to_dict() | {"trusted_at": now()}
-    home().mkdir(parents=True, exist_ok=True)
-    (home() / "trusted_keys.json").write_text(json.dumps(t, indent=2))
-    return key
+trusted = identity.trusted
+trust = identity.trust
+untrust = identity.untrust
 
 
 # ------------------------------------------------------------------ sealing and signing
-def _signed_part(seal: dict, signer: dict) -> bytes:
-    return canonical({"seal": seal_id(seal), "signer": signer})
-
-
 def sign_seal(seal: dict, *, role: str = "author", passphrase: Optional[str] = None) -> dict:
     """Add your signature to a seal (in place) and return the signature entry."""
-    info = my_key()
-    if info is None:
-        raise FileNotFoundError("no signing key; create one with nuscope keys create \"Your Name\"")
-    if any(s["signer"]["fingerprint"] == info.fingerprint for s in seal.get("signatures", [])):
+    me = identity.me()
+    if me is None:
+        raise FileNotFoundError('no signing key; create one with: emdb identity create "Your Name" --orcid ...')
+    if any(s["signer"]["fingerprint"] == me.fingerprint for s in seal.get("signatures", [])):
         raise ValueError("this seal already carries your signature")
-    signer = {"name": info.name, "orcid": info.orcid, "fingerprint": info.fingerprint,
-              "public_key": info.public_key, "alg": "Ed25519", "role": role, "signed_at": now()}
-    sig = _private_key(passphrase).sign(_signed_part(seal, signer))
-    entry = {"signer": signer, "signature": _b64(sig)}
+    entry = identity.sign({"seal": seal_id(seal)}, role=role, passphrase=passphrase)
     seal.setdefault("signatures", []).append(entry)
     return entry
 
@@ -237,16 +152,7 @@ class Report:
 
 
 def verify_signature(seal: dict, entry: dict) -> bool:
-    _, ed25519 = _crypto()
-    signer = entry["signer"]
-    try:
-        if fingerprint(signer["public_key"]) != signer["fingerprint"]:
-            return False
-        pk = ed25519.Ed25519PublicKey.from_public_bytes(base64.b64decode(signer["public_key"]))
-        pk.verify(base64.b64decode(entry["signature"]), _signed_part(seal, signer))
-        return True
-    except Exception:
-        return False
+    return identity.verify({"seal": seal_id(seal)}, entry).valid
 
 
 def verify_doc(data, doc: dict) -> Report:
@@ -268,7 +174,7 @@ def verify_doc(data, doc: dict) -> Report:
     }
     problems = [f"{k} changed after sealing" for k, v in checks.items() if not v and k != "history chain"]
     problems += chain_problems
-    tr = trusted()
+    tr = identity.trusted()
     sigs = []
     for e in seal.get("signatures", []):
         s = e["signer"]
@@ -304,5 +210,5 @@ def cosign(path, *, role: str = "co-signer", passphrase: Optional[str] = None) -
     return verify(path)
 
 
-__all__ = ["create_key", "my_key", "trust", "trusted", "make_seal", "sign_seal", "verify", "verify_doc",
-           "cosign", "Report", "KeyInfo", "fingerprint", "sha256_array", "home"]
+__all__ = ["create_key", "my_key", "trust", "trusted", "untrust", "make_seal", "sign_seal", "verify", "verify_doc",
+           "cosign", "Report", "Identity", "KeyInfo", "fingerprint", "sha256_array"]

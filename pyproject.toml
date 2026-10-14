@@ -31,6 +31,7 @@ dependencies = [
     "rosettasciio>=0.6",
     "requests>=2.28",
     "cryptography>=42",
+    "EMDataBridge>=0.1",   # researcher identity (ORCID, signing keys)
 ]
 
 [project.optional-dependencies]
