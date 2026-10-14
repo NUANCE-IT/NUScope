@@ -187,7 +187,10 @@ class Provenance:
         name = " ".join(str(x) for x in (ins.get("vendor"), ins.get("model")) if x)
         if not name:
             return None
-        aid = f"instrument:{name.replace(' ', '_')}" + (f":{ins['serial']}" if ins.get("serial") else "")
+        if ins.get("doi"):            # a registered instrument (DataCite) is identified by its DOI
+            aid = f"instrument:doi:{ins['doi']}"
+        else:
+            aid = f"instrument:{name.replace(' ', '_')}" + (f":{ins['serial']}" if ins.get("serial") else "")
         return self.add_agent(Agent(id=aid, kind="instrument", name=name, attributes=_jsonable(ins)))
 
     def add_file(self, path: str | Path, *, location: Optional[str] = None, hash_file: bool = True,

@@ -429,7 +429,7 @@ $("#auto").onclick = () => { [S.lo, S.hi] = S.hist.auto; S.gamma = 1; $("#gamma"
 
 // ================================================================== inspector: info
 const LABELS = {
-  instrument: ["Instrument", { vendor: "Vendor", model: "Model", serial: "Serial number" }],
+  instrument: ["Instrument", { name: "Name", vendor: "Vendor", model: "Model", serial: "Serial number", facility: "Facility", doi: "DOI" }],
   beam: ["Beam", { voltage_kV: ["Voltage", "kV"], current_nA: ["Current", "nA"], spot: "Spot", probe_size_nm: ["Probe size", "nm"], emission_current_uA: ["Emission", "µA"] }],
   optics: ["Optics", { magnification: ["Magnification", "×"], working_distance_mm: ["Working distance", "mm"], hfw_um: ["Field width", "µm"],
     camera_length_mm: ["Camera length", "mm"], field_of_view_um: ["Field of view", "µm"], mode: "Mode" }],
@@ -662,6 +662,10 @@ function sealCard(s) {
     card.append(el("div", { class: "signer" }, el("b", {}, g.name, g.role ? ` · ${g.role}` : ""), tag,
       el("small", {}, g.orcid ? `${g.orcid} · ` : "", "key ", el("code", {}, g.fingerprint), " · ", new Date(g.signed_at).toLocaleString())));
   }
+  for (const i of r.instruments || []) card.append(el("div", { class: "signer" }, el("b", {}, "Instrument"), el("span", { class: "tag-ok" }, "DOI"),
+    el("small", {}, i.name || "", " · ", el("a", { href: `https://doi.org/${i.doi}`, target: "_blank", rel: "noopener" }, i.doi))));
+  for (const d of r.identifiers || []) card.append(el("div", { class: "signer" }, el("b", {}, "Dataset DOI"), el("span", { class: d.state === "findable" ? "tag-ok" : "tag-warn" }, d.state),
+    el("small", {}, d.doi, ` · ${d.datacite} DataCite`)));
   for (const p of r.problems) card.append(el("p", { class: "hint", style: "color:var(--err)" }, p));
   if (r.status !== "tampered") card.append(el("p", { class: "hint" }, s.integrity ? "Checked when the file was opened. Steps added since then are covered when you save again." : "Checked right after saving."));
   return card;

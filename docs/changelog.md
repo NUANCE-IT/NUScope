@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 — unreleased
+
+- **DataCite.** Instrument DOIs from the NUANCE registry (nuance-datacite) are recorded in metadata,
+  provenance and the seal manifest; `nuscope cite` builds dataset-DOI metadata linked to the instrument
+  (`IsCollectedBy`), the seal and the creators' ORCID iDs, and `--draft` registers a draft DOI.
+- Acquisition dates are normalized to ISO 8601 for every vendor.
+- Studio shows the instrument DOI and any dataset DOI.
+
 ## 0.4.1 — 2026-10-14
 
 - Requires Python 3.11 or newer: Zarr 3, which NUScope uses, does not install on 3.10. NUScope 0.4.0

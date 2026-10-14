@@ -1,0 +1,3 @@
+# DataCite
+
+::: nuscope.datacite

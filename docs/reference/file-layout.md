@@ -43,7 +43,8 @@ JSON. Resolution tags carry the pixel size.
     "metadata_sha256": "…",
     "provenance_sha256": "…",
     "provenance_heads": ["…"],
-    "steps": 3
+    "steps": 3,
+    "instruments": [{"doi": "10.82427/nuance.epic.sem.s3400.2025.000001", "name": "EPIC SEM Hitachi S-3400"}]
   },
   "signatures": [
     {"signer": {"name": "…", "orcid": "https://orcid.org/…", "fingerprint": "…", "public_key": "…",

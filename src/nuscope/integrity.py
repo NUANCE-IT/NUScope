@@ -68,7 +68,19 @@ def manifest(data, doc: dict) -> dict:
         "provenance_sha256": sha256_json(prov),
         "provenance_heads": Provenance.from_dict(prov).heads(),
         "steps": len(prov.get("activities", [])),
+        # instrument DOIs (DataCite): named in the manifest so every signature covers them explicitly
+        "instruments": instruments_of(prov),
     }
+
+
+def instruments_of(prov: dict) -> list[dict]:
+    """The registered instruments (with DOIs) among a provenance record's agents."""
+    out = {}
+    for a in prov.get("agents", []):
+        doi = (a.get("attributes") or {}).get("doi")
+        if a.get("kind") == "instrument" and doi:
+            out[doi] = {"doi": doi, "name": (a.get("attributes") or {}).get("name") or a.get("name")}
+    return [out[k] for k in sorted(out)]
 
 
 def seal_id(seal: dict) -> str:
@@ -126,6 +138,8 @@ class Report:
     signatures: list = field(default_factory=list)    # {name, orcid, fingerprint, role, signed_at, valid, trusted}
     problems: list = field(default_factory=list)
     sealed_at: Optional[str] = None
+    instruments: list = field(default_factory=list)   # instrument DOIs named in the (verified) manifest
+    identifiers: list = field(default_factory=list)   # dataset DOIs recorded next to the seal (not covered by it)
 
     @property
     def ok(self) -> bool:
@@ -147,6 +161,10 @@ class Report:
             who = s["name"] + (f" ({s['orcid']})" if s.get("orcid") else "")
             out.append(f"  {mark} signed by {who}, key {s['fingerprint']}, {s['role']}, {s['signed_at']}"
                        + ("" if not s["valid"] else ", trusted" if s["trusted"] else ", key not in your trusted list"))
+        for i in self.instruments:
+            out.append(f"  instrument {i.get('name') or ''} https://doi.org/{i['doi']}")
+        for d in self.identifiers:
+            out.append(f"  dataset DOI {d['doi']} ({d.get('state')}, {d.get('datacite')} DataCite)")
         out += [f"  ! {p}" for p in self.problems]
         return "\n".join(out)
 
@@ -186,7 +204,8 @@ def verify_doc(data, doc: dict) -> Report:
     intact = all(checks.values()) and all(s["valid"] for s in sigs)
     status = ("signed" if sigs else "sealed") if intact else "tampered"
     return Report(status, seal_id=seal_id(seal), checks=checks, signatures=sigs, problems=problems,
-                  sealed_at=m.get("created"))
+                  sealed_at=m.get("created"), instruments=m.get("instruments", []),
+                  identifiers=seal.get("identifiers", []))
 
 
 def verify(path) -> Report:

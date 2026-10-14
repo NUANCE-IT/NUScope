@@ -55,7 +55,7 @@ def _normalize(tree: dict, orig: dict, plugin: str) -> dict:
             md.put(m, f"sample.stage.{k}", stage[key])
     gen = tree.get("General") or {}
     if gen.get("date"):
-        md.put(m, "acquisition.datetime", f"{gen.get('date')} {gen.get('time', '')}".strip())
+        md.put(m, "acquisition.datetime", md.iso_datetime(gen.get('date'), gen.get('time')))
     md.put(m, "sample.name", (tree.get("Sample") or {}).get("description") or gen.get("title"))
     model = str(t.get("microscope") or "")
     vendor = {"EMD": "Thermo Fisher Scientific", "TIA": "Thermo Fisher Scientific",

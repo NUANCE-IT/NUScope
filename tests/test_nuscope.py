@@ -573,3 +573,76 @@ def test_nuance_mcp_plugin(tmp_path, keyhome, monkeypatch):
                            dispersion_eV_per_ch=1.0, exposure_s=0.5, tags={})
     e = ctx.hooks[0](tool="acquire_eels", params={}, result=spec, instrument={"vendor": "Gatan", "model": "GIF"})
     assert t["nuscope_describe"](e["file"])["axes"][0] == {"name": "energy", "size": 100, "scale": 1.0, "units": "eV"}
+
+
+# ------------------------------------------------------------------ DataCite: instrument DOIs and dataset DOIs
+S3400_DOI = "10.82427/nuance.epic.sem.s3400.2025.000001"
+
+
+def _s3400_like(tmp_path):
+    p = tmp_path / "ti.tif"
+    tifffile.imwrite(p, disks((48, 64)))
+    (tmp_path / "ti.txt").write_text("[SemImageFile]\nInstructName=S-3400\nSerialNumber=1234\nDate=12/06/2025\n"
+                                     "Time=17:39:19\nAcceleratingVoltage=30000 Volt\nPixelSize=396.875\n")
+    return p
+
+
+def test_iso_dates_from_vendor_formats():
+    assert ns.metadata.iso_datetime("12/06/2025", "17:39:19") == "2025-12-06T17:39:19"
+    assert ns.metadata.iso_datetime("05/14/2024", "10:12:34 AM") == "2024-05-14T10:12:34"
+    assert ns.metadata.iso_datetime("2020/02/03") == "2020-02-03"
+    assert ns.metadata.iso_datetime("not a date") == "not a date"
+
+
+def test_instrument_doi_is_recorded_and_sealed(tmp_path, keyhome):
+    pytest.importorskip("nuance_datacite")
+    d = ns.load(_s3400_like(tmp_path))
+    assert d.metadata["instrument"]["doi"] == S3400_DOI
+    assert d.metadata["acquisition"]["datetime"] == "2025-12-06T17:39:19"
+    assert f"instrument:doi:{S3400_DOI}" in d.provenance.agents
+    r = ns.verify(ns.save(d, tmp_path / "ti.h5"))
+    assert r.instruments == [{"doi": S3400_DOI, "name": "EPIC SEM Hitachi S-3400"}] and r.ok
+    # the instrument DOI is covered: editing it breaks the seal
+    import h5py
+    with h5py.File(tmp_path / "ti.h5", "r+") as f:
+        n = f["entry/nuscope"]
+        m = json.loads(n["metadata"][()]); m["instrument"]["doi"] = "10.82427/other"
+        del n["metadata"]; n["metadata"] = json.dumps(m)
+    assert ns.verify(tmp_path / "ti.h5").checks["metadata"] is False
+
+
+def test_cite_builds_linked_payload_and_registers_draft(tmp_path, keyhome):
+    pytest.importorskip("nuance_datacite")
+    from nuscope import datacite
+    ns.integrity.create_key("Ada Lovelace", orcid="0000-0002-1825-0097")
+    p = ns.save(ns.load(_s3400_like(tmp_path)), tmp_path / "ti.h5")
+    a = datacite.dataset_payload(p, title="Ti alloy, sample 11")
+    assert a["relatedIdentifiers"][0]["relatedIdentifier"] == S3400_DOI
+    assert a["relatedIdentifiers"][0]["relationType"] == "IsCollectedBy"
+    seal = ns.verify(p).seal_id
+    assert {"alternateIdentifier": f"sha256:{seal}", "alternateIdentifierType": "NUScope seal SHA-256"} \
+        in a["alternateIdentifiers"]
+    assert a["creators"][0]["nameIdentifiers"][0]["nameIdentifier"].endswith("0002-1825-0097")
+    assert a["dates"] == [{"date": "2025-12-06", "dateType": "Collected"}]
+
+    class Fake:                       # stands in for nuance_datacite.DataCite (no network)
+        environment = "test"
+        def create_draft(self, attrs):
+            self.attrs = attrs
+            return {"data": {"attributes": {"doi": "10.80000/test.1", "state": "draft"}}}
+    fake = Fake()
+    doi = datacite.register_draft(p, title="Ti alloy, sample 11", client=fake)
+    r = ns.verify(p)
+    assert doi == "10.80000/test.1" and r.ok and r.seal_id == seal          # the seal itself is unchanged
+    assert r.identifiers[0]["doi"] == doi and r.identifiers[0]["state"] == "draft"
+
+
+def test_cite_refuses_modified_files(tmp_path, keyhome):
+    pytest.importorskip("nuance_datacite")
+    import h5py
+    from nuscope import datacite
+    p = ns.save(ns.load(_s3400_like(tmp_path)), tmp_path / "ti.h5")
+    with h5py.File(p, "r+") as f:
+        f["entry/data/data"][0, 0] += 1
+    with pytest.raises(ValueError, match="tampered"):
+        datacite.dataset_payload(p, title="x")

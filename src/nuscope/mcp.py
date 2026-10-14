@@ -62,6 +62,9 @@ def _metadata(tool: str, params: dict, result: Any, instrument: dict) -> dict:
     st = instrument.get("state") or {}
     md.put(m, "instrument.vendor", instrument.get("vendor"))
     md.put(m, "instrument.model", instrument.get("model"))
+    md.put(m, "instrument.serial", (instrument.get("state") or {}).get("serial"))
+    from .datacite import link_instrument
+    link_instrument(m)                # registered instrument DOI (nuance-datacite)
     m["technique"] = TECHNIQUE.get(tool)
     md.put(m, "beam.voltage_kV", st.get("high_tension_kV"))
     md.put(m, "beam.spot_size", st.get("spot_size"))
