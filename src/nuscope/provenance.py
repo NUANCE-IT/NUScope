@@ -12,6 +12,13 @@ Every dataset carries a :class:`Provenance` record:
 
 The record travels with the data through every analysis, is written into
 every file NUScope saves, and exports to PROV-JSON or RO-Crate.
+
+Activities form a hash chain: each one stores the SHA-256 ``digest`` of its
+own canonical JSON, which includes the digests of the activities it follows
+(``prev``). Entity ids are content addresses (``file:sha256:...``,
+``array:blake2b:...``), so the chain also pins every input and output.
+Editing any step afterwards breaks the chain; :mod:`nuscope.integrity` checks
+it and seals and signs saved files.
 """
 from __future__ import annotations
 
@@ -52,6 +59,17 @@ def hash_array(data) -> str:
     h.update(str(a.shape).encode())
     h.update(a.tobytes())
     return h.hexdigest()
+
+
+def canonical(obj) -> bytes:
+    """Deterministic JSON bytes for hashing and signing (sorted keys, no spaces, UTF-8)."""
+    import json
+    return json.dumps(_jsonable(obj), sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                      allow_nan=True).encode()
+
+
+def sha256_json(obj) -> str:
+    return hashlib.sha256(canonical(obj)).hexdigest()
 
 
 def software_versions(extra: tuple[str, ...] = ()) -> dict[str, str]:
@@ -98,6 +116,17 @@ class Activity:
     agents: list = field(default_factory=list)      # agent ids
     software: dict = field(default_factory=dict)
     host: str = ""
+    prev: list = field(default_factory=list)        # digests of the activities this one follows
+    digest: Optional[str] = None                    # SHA-256 of this record (hash chain)
+
+    def compute_digest(self) -> str:
+        d = asdict(self)
+        d.pop("digest")
+        return sha256_json(d)
+
+    def seal(self) -> "Activity":
+        self.digest = self.compute_digest()
+        return self
 
 
 def _current_person() -> Agent:
@@ -180,11 +209,45 @@ class Provenance:
         agents = [person, "org:nuance"] + ([instrument] if instrument else [])
         act = Activity(id=f"activity:{uuid.uuid4().hex[:12]}", op=op, started=started or now(), ended=now(),
                        params=_jsonable(params or {}), used=list(used or []), generated=list(generated or []),
-                       agents=agents, software=software_versions(), host=socket.gethostname())
-        self.activities.append(act)
+                       agents=agents, software=software_versions(), host=socket.gethostname(),
+                       prev=self.heads())
+        self.activities.append(act.seal())
         if act.generated:
             self.current = act.generated[-1]
         return act
+
+    def amend_last(self, *, used: Optional[list] = None, params: Optional[dict] = None):
+        """Add inputs or parameters to the newest step (before anything follows it) and re-hash it."""
+        act = self.activities[-1]
+        if any(act.digest in a.prev for a in self.activities):
+            raise ValueError("the newest step is already followed by another; record a new step instead")
+        act.used += list(used or [])
+        act.params.update(_jsonable(params or {}))
+        act.seal()
+
+    def heads(self) -> list[str]:
+        """Digests of the newest steps (those no other step follows). One, unless histories were merged."""
+        followed = {p for a in self.activities for p in a.prev}
+        return [a.digest for a in self.activities if a.digest and a.digest not in followed]
+
+    def check_chain(self) -> tuple[bool, list[str]]:
+        """Recompute every digest and link. Returns (intact, problems)."""
+        problems, seen = [], set()
+        if self.activities and not any(a.digest for a in self.activities):
+            return False, ["the history has no hash chain (written by NUScope before 0.3)"]
+        for i, a in enumerate(self.activities, 1):
+            if not a.digest:
+                problems.append(f"step {i} ({a.op}) is not hashed")
+            elif a.compute_digest() != a.digest:
+                problems.append(f"step {i} ({a.op}) was changed after it was recorded")
+            for p in a.prev:
+                if p not in seen:
+                    problems.append(f"step {i} ({a.op}) follows a step that is missing or out of order")
+            if i > 1 and not a.prev:
+                problems.append(f"step {i} ({a.op}) is not linked to the steps before it")
+            if a.digest:
+                seen.add(a.digest)
+        return not problems, problems
 
     def merge(self, other: "Provenance"):
         """Bring in another dataset's history (for operations with several inputs)."""
@@ -247,4 +310,5 @@ class Provenance:
         return doc
 
 
-__all__ = ["Provenance", "Entity", "Activity", "Agent", "sha256_file", "hash_array", "FACILITY"]
+__all__ = ["Provenance", "Entity", "Activity", "Agent", "sha256_file", "hash_array", "canonical", "sha256_json",
+           "FACILITY"]

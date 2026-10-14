@@ -1,8 +1,11 @@
 """``nuscope`` command line.
 
     nuscope info <file | globus://collection/path>     what is in a file
-    nuscope convert <in> <out.nxs|.zarr|.tif>          convert, keeping metadata and provenance
+    nuscope convert <in> <out.h5|.nxs|.zarr|.tif>      convert, keeping metadata and provenance, sealed
     nuscope provenance <file> [--prov-json out.json]   history of a NUScope file
+    nuscope verify <files...>                          check seals, hash chains and signatures
+    nuscope sign <files...> [--role ...]               add your signature to sealed files
+    nuscope keys create "Name" [--orcid ...] | show | export <file> | trust <file.pub.json> | list
     nuscope crate <out folder> <files...> --title ...  RO-Crate package for a repository deposit
     nuscope formats                                    supported formats
     nuscope studio [folder] [--port 8770] [--open]     browser application
@@ -45,6 +48,25 @@ def main(argv=None) -> int:
     p.add_argument("source")
     p.add_argument("dest")
     p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--no-sign", action="store_true", help="seal without signing, even if you have a key")
+    p = sub.add_parser("verify", help="check seals, hash chains and signatures")
+    p.add_argument("files", nargs="+")
+    p.add_argument("--json", action="store_true")
+    p = sub.add_parser("sign", help="add your signature to sealed NUScope files")
+    p.add_argument("files", nargs="+")
+    p.add_argument("--role", default="co-signer", help="e.g. author, co-signer, facility, reviewer")
+    k = sub.add_parser("keys", help="your signing key and the keys you trust")
+    ks = k.add_subparsers(dest="kcmd", required=True)
+    x = ks.add_parser("create", help="create your Ed25519 signing key")
+    x.add_argument("name")
+    x.add_argument("--orcid")
+    x.add_argument("--overwrite", action="store_true")
+    ks.add_parser("show", help="your public key and fingerprint")
+    x = ks.add_parser("export", help="write your public key to share with others")
+    x.add_argument("file")
+    x = ks.add_parser("trust", help="trust a public key someone shared (.pub.json)")
+    x.add_argument("file")
+    ks.add_parser("list", help="keys you trust")
     p = sub.add_parser("provenance", help="show the history of a NUScope file")
     p.add_argument("source")
     p.add_argument("--prov-json", help="also write W3C PROV-JSON here")
@@ -86,8 +108,21 @@ def main(argv=None) -> int:
         for d in ns.load_all(a.source):
             print(json.dumps(d.metadata, indent=2, default=str) if a.json else d.describe())
     elif a.cmd == "convert":
-        out = ns.save(ns.load(a.source), a.dest, overwrite=a.overwrite)
+        out = ns.save(ns.load(a.source), a.dest, overwrite=a.overwrite, sign=False if a.no_sign else None)
         print(f"wrote {out}")
+        print(ns.verify(out))
+    elif a.cmd == "verify":
+        bad = 0
+        for f in a.files:
+            r = ns.verify(f)
+            bad += not r.ok
+            print(json.dumps(r.to_dict(), indent=2) if a.json else f"{f}\n{r}\n")
+        return 1 if bad else 0
+    elif a.cmd == "sign":
+        for f in a.files:
+            print(f"{f}\n{ns.integrity.cosign(f, role=a.role)}\n")
+    elif a.cmd == "keys":
+        return _keys(a)
     elif a.cmd == "provenance":
         d = ns.load(a.source)
         print("\n".join(d.provenance.lineage()))
@@ -107,6 +142,31 @@ def main(argv=None) -> int:
         print("\n".join(ns.formats()))
     elif a.cmd == "globus":
         return _globus(a)
+    return 0
+
+
+def _keys(a) -> int:
+    from . import integrity as ni
+    if a.kcmd == "create":
+        k = ni.create_key(a.name, orcid=a.orcid, overwrite=a.overwrite)
+        print(f"created key {k.fingerprint} for {k.name}\nprivate key: {ni.home() / 'keys' / ni.KEY_FILE} (keep it safe)"
+              "\nshare your public key with: nuscope keys export my_key.pub.json")
+    elif a.kcmd in ("show", "export"):
+        k = ni.my_key()
+        if k is None:
+            print('no key yet; create one with: nuscope keys create "Your Name"')
+            return 1
+        if a.kcmd == "export":
+            Path(a.file).write_text(json.dumps(k.to_dict(), indent=2))
+            print(f"wrote {a.file}")
+        else:
+            print(f"{k.name}{f' ({k.orcid})' if k.orcid else ''}\nfingerprint {k.fingerprint}\npublic key  {k.public_key}")
+    elif a.kcmd == "trust":
+        k = ni.trust(a.file)
+        print(f"trusted {k.name} [{k.fingerprint}]")
+    elif a.kcmd == "list":
+        for fp, k in ni.trusted().items():
+            print(f"{fp}  {k['name']}{'  ' + k['orcid'] if k.get('orcid') else ''}")
     return 0
 
 

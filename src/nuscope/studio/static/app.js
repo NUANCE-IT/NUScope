@@ -122,6 +122,8 @@ async function openPath(path, li) {
     renderOpen();
     await show(out[0].id);
     if (out.length > 1) toast(`${out.length} datasets in this file`, " All are listed under Open.");
+    const bad = out.find((s) => s.integrity?.status === "tampered");
+    if (bad) toast("This file changed after it was sealed", ` ${bad.integrity.problems.join("; ")}. See History.`, "err");
   } catch (e) { toast("Could not open the file", ` ${e.message}`, "err"); }
   li?.classList.remove("busy");
 }
@@ -610,12 +612,70 @@ const OPNAMES = { "io.read.thermo": "Read Thermo Fisher / FEI file", "io.read.ze
   "analyze.subtract_background": "Removed background", "analyze.radial_profile": "Radial profile", "analyze.line_profile": "Line profile",
   "analyze.calibrate": "Corrected pixel size", "analyze.bin": "Binned", "analyze.crop": "Cropped", "analyze.threshold": "Thresholded",
   "studio.view": "Took the displayed view", "create.from_array": "Created from an array" };
+// ------------------------------------------------------------------ integrity: seal, signatures, keys
+const SHIELD = '<svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 10 4-1.7 7-5.6 7-10V6z"/><path d="m9 12 2 2 4-4"/></svg>';
+const SHIELD_X = '<svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 10 4-1.7 7-5.6 7-10V6z"/><path d="m9.5 9.5 5 5m0-5-5 5"/></svg>';
+const svg = (markup) => { const t = document.createElement("template"); t.innerHTML = markup; return t.content.firstChild; };
+
+function renderSignNote() {
+  const n = $("#sign-note"); if (!n) return;
+  n.replaceChildren(svg(SHIELD));
+  if (S.key) n.append(el("span", {}, `Sealed and signed with your key · ${S.key.name} · `, el("code", {}, S.key.fingerprint)));
+  else n.append(el("span", {}, "Sealed with SHA-256 hashes. ", el("a", { on: (e) => { e.stopPropagation(); closeMenus(); keyDialog(); } }, "Create a signing key"), " to sign as well."));
+}
+function keyDialog() {
+  const name = el("input", { type: "text", placeholder: "Your name" }), orcid = el("input", { type: "text", placeholder: "https://orcid.org/0000-…" });
+  const body = el("div", {},
+    el("p", { class: "hint" }, "Your key signs every file you save, so anyone can check that the data, metadata and history are exactly as you left them, and that they come from you. The private key stays on this computer, readable only by you."),
+    el("div", { class: "row" }, el("label", {}, "Name", name), el("label", {}, "ORCID (optional)", orcid)));
+  modal("Create your signing key", body, "Create key", async () => {
+    try {
+      S.key = await post("/api/keys", { name: name.value, orcid: orcid.value });
+      renderSignNote();
+      toast("Signing key created", ` Fingerprint ${S.key.fingerprint}. Files you save from now on are signed.`, "ok");
+      const cur = S.items.get(S.cur); if (cur) renderHistory(cur);
+    } catch (e) { toast("Could not create the key", ` ${e.message}`, "err"); return false; }
+  });
+  setTimeout(() => name.focus(), 50);
+}
+const SAVED = new Map();   // dataset id -> {path, integrity} of its last save
+function sealCard(s) {
+  const saved = SAVED.get(s.id), r = s.integrity || saved?.integrity, card = el("div", { class: `card seal ${r ? r.status : "none"}` });
+  const steps = s.activities.length;
+  const chain = s.chain?.intact ? `History chain intact: ${steps} step${steps === 1 ? "" : "s"} linked by SHA-256.` : `History chain: ${(s.chain?.problems || []).join("; ")}`;
+  if (!r) {
+    card.append(el("div", { class: "seal-head" }, svg(SHIELD), "Not sealed yet"),
+      el("p", { class: "hint" }, s.sources.length ? "Read from an instrument file; its SHA-256 is recorded below. " : "",
+        "Saving writes a seal with hashes of the data, calibration, metadata and history",
+        S.key ? `, signed by ${S.key.name}.` : ". ", S.key ? "" : el("a", { class: "link", on: keyDialog }, "Create a signing key"), S.key ? "" : " to sign it too."),
+      el("p", { class: "hint" }, chain));
+    return card;
+  }
+  const head = { signed: "Signed and intact", sealed: "Intact · sealed, not signed", tampered: "Changed after it was sealed", unsealed: "No seal in this file" }[r.status];
+  card.append(el("div", { class: "seal-head" }, svg(r.status === "tampered" ? SHIELD_X : SHIELD), head));
+  if (!s.integrity) card.append(el("small", { class: "hint" }, "Your saved file ", el("code", {}, saved.path), el("br")));
+  if (r.sealed_at) card.append(el("small", { class: "hint" }, `Sealed ${new Date(r.sealed_at).toLocaleString()} · seal `, el("code", {}, (r.seal_id || "").slice(0, 16) + "…")));
+  const labels = { data: "Data", calibration: "Calibration", metadata: "Metadata", history: "History", "history chain": "History chain" };
+  card.append(el("div", { class: "checks" }, ...Object.entries(r.checks).map(([k, v]) => el("span", { class: v ? "y" : "n" }, `${v ? "✓" : "✗"} ${labels[k] || k}`))));
+  for (const g of r.signatures) {
+    const tag = !g.valid ? el("span", { class: "tag-err" }, "signature invalid") : g.trusted ? el("span", { class: "tag-ok" }, "trusted key") : el("span", { class: "tag-warn", title: "Valid signature, but this key is not in your trusted list. Trust it with: nuscope keys trust <file.pub.json>" }, "unknown key");
+    card.append(el("div", { class: "signer" }, el("b", {}, g.name, g.role ? ` · ${g.role}` : ""), tag,
+      el("small", {}, g.orcid ? `${g.orcid} · ` : "", "key ", el("code", {}, g.fingerprint), " · ", new Date(g.signed_at).toLocaleString())));
+  }
+  for (const p of r.problems) card.append(el("p", { class: "hint", style: "color:var(--err)" }, p));
+  if (r.status !== "tampered") card.append(el("p", { class: "hint" }, s.integrity ? "Checked when the file was opened. Steps added since then are covered when you save again." : "Checked right after saving."));
+  return card;
+}
+
 function renderHistory(s) {
   const box = $("#ins-history"); box.replaceChildren();
+  box.append(sealCard(s));
   box.append(el("p", { class: "hint" }, "Everything done to this dataset, oldest first. It is saved inside every file you save and can be exported."));
   const ul = el("ul", { class: "timeline" });
   for (const a of s.activities) {
-    const params = Object.entries(a.params || {}).map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`).join(", ");
+    const params = a.params?.seal
+      ? `${a.params.integrity} · seal ${a.params.seal.slice(0, 12)}… · ${a.params.signed_by.length} signature${a.params.signed_by.length === 1 ? "" : "s"}`
+      : Object.entries(a.params || {}).map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`).join(", ");
     const cls = a.op.startsWith("io.read") ? "read" : a.op.startsWith("io.save") ? "save" : "";
     const name = OPNAMES[a.op] || (a.op.startsWith("io.save") ? `Saved as ${a.op.split(".").pop()}` : a.op.startsWith("io.read") ? `Read ${a.op.split(".").pop()} file` : a.op);
     ul.append(el("li", { class: cls }, el("b", {}, name),
@@ -642,7 +702,10 @@ document.addEventListener("click", closeMenus);
 $$("[data-save]").forEach((b) => b.addEventListener("click", async () => {
   try {
     const r = await post(`/api/ds/${S.cur}/save`, { format: b.dataset.save });
-    toast("Saved", ` ${r.path}`, "ok");
+    const g = r.integrity.signatures.filter((x) => x.valid).map((x) => x.name);
+    SAVED.set(S.cur, r);
+    toast(g.length ? "Saved, sealed and signed" : "Saved and sealed", ` ${r.path}${g.length ? ` · signed by ${g.join(", ")}` : ""}`, "ok");
+    renderHistory(await (await api(`/api/ds/${S.cur}`)).json());
     if (r.download) download(r.download);
   } catch (e) { toast("Could not save", ` ${e.message}`, "err"); }
 }));
@@ -704,7 +767,7 @@ $("#theme-btn").onclick = () => applyTheme(document.documentElement.dataset.them
 (async function boot() {
   try { applyTheme(localStorage.getItem("nuscope-studio-theme") || "dark"); } catch (e) { /* storage blocked */ }
   const st = await (await api("/api/state")).json();
-  S.rootName = st.name;
+  S.rootName = st.name; S.key = st.key; renderSignNote();
   $("#folder-chip").textContent = `${st.name} · NUScope ${st.version}`; $("#folder-chip").title = st.root;
   $("#globus-hint").textContent = st.globus.configured
     ? "Browse a Globus collection and open files directly. Log in once in a terminal with: nuscope globus login <collection id>"

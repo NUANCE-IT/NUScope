@@ -47,6 +47,7 @@ class Item:
     op: Optional[str] = None
     cache: dict = field(default_factory=dict)
     source: Optional[str] = None   # file or URL it was opened from (top-level items only)
+    stamp: Optional[tuple] = None  # (mtime_ns, size) of that file when opened
 
 
 def _jsonable(o: Any):
@@ -116,6 +117,15 @@ def png(a: np.ndarray) -> bytes:
     return iio.imwrite("<bytes>", a, extension=".png")
 
 
+def _stamp(src: str) -> Optional[tuple]:
+    p = Path(src)
+    if not p.exists():
+        return None
+    st = max((f.stat() for f in p.rglob("*") if f.is_file()), key=lambda s: s.st_mtime_ns, default=p.stat()) \
+        if p.is_dir() else p.stat()
+    return (st.st_mtime_ns, st.st_size)
+
+
 def summary_of(item: Item) -> dict:
     ds = item.ds
     prov = ds.provenance
@@ -125,6 +135,8 @@ def summary_of(item: Item) -> dict:
         "axes": [vars(a) for a in ds.axes], "metadata": _jsonable(ds.metadata), "summary": md.summary(ds.metadata),
         "sources": [vars(e) for e in prov.sources()],
         "activities": [vars(a) for a in prov.activities], "agents": [vars(a) for a in prov.agents.values()],
+        "integrity": ds.integrity.to_dict() if ds.integrity is not None else None,
+        "chain": dict(zip(("intact", "problems"), prov.check_chain())),
     }
 
 
@@ -178,7 +190,29 @@ def create_app(root: str | Path = ".") -> FastAPI:
     def state():
         from ..globus import _configured_client_id
         return {"root": str(root), "name": root.name, "version": __version__,
-                "globus": {"configured": bool(_configured_client_id())}, "open": [summary_of(i)["name"] for i in items.values()]}
+                "globus": {"configured": bool(_configured_client_id())}, "key": _key(),
+                "open": [summary_of(i)["name"] for i in items.values()]}
+
+    def _key():
+        from ..integrity import my_key
+        k = my_key()
+        return k.to_dict() if k else None
+
+    @app.get("/api/keys")
+    def keys():
+        from ..integrity import trusted
+        return {"key": _key(), "trusted": list(trusted().values())}
+
+    @app.post("/api/keys")
+    def create_key(req: dict = Body(...)):
+        from ..integrity import create_key as ck
+        name = (req.get("name") or "").strip()
+        if not name:
+            raise HTTPException(400, "enter your name")
+        try:
+            return ck(name, orcid=(req.get("orcid") or "").strip() or None).to_dict()
+        except FileExistsError as e:
+            raise HTTPException(409, str(e))
 
     @app.get("/api/library")
     def library(path: str = "", q: str = ""):
@@ -211,8 +245,9 @@ def create_app(root: str | Path = ".") -> FastAPI:
     @app.post("/api/open")
     def open_(req: dict = Body(...)):
         src = req.get("url") or str(inside(req["path"]))
-        already = [it for it in items.values() if it.source == src]
-        if already:   # opening a file twice shows the open copy, with its results
+        stamp = _stamp(src)
+        already = [it for it in items.values() if it.source == src and it.stamp == stamp]
+        if already:   # opening an unchanged file again shows the open copy, with its results
             return [summary_of(it) for it in already]
         try:
             dss = load_all(src)
@@ -221,7 +256,7 @@ def create_app(root: str | Path = ".") -> FastAPI:
         out = []
         for d in dss:
             it = add(d)
-            it.source = src
+            it.source, it.stamp = src, stamp
             out.append(summary_of(it))
         return out
 
@@ -387,12 +422,19 @@ def create_app(root: str | Path = ".") -> FastAPI:
     def save_ds(i: str, req: dict = Body(...)):
         it = get(i)
         fmt = req.get("format", "nxs")
-        if fmt not in ("nxs", "tif", "zarr"):
-            raise HTTPException(400, "format is nxs, tif or zarr")
+        if fmt not in ("nxs", "h5", "tif", "zarr"):
+            raise HTTPException(400, "format is nxs, h5, tif or zarr")
         exports.mkdir(exist_ok=True)
         p = exports / f"{_safe(it.ds.name)}.{fmt}"
-        save(it.ds, p, overwrite=True)
-        return {"path": str(p.relative_to(root)), "download": None if fmt == "zarr" else f"/api/file?path={p.relative_to(root)}"}
+        if p.is_dir():
+            shutil.rmtree(p)
+        try:
+            save(it.ds, p, overwrite=True, sign=None if req.get("sign", True) else False)   # None: sign when a key exists
+        except Exception as e:
+            raise HTTPException(400, f"Could not save: {e}")
+        from ..integrity import verify
+        return {"path": str(p.relative_to(root)), "integrity": verify(p).to_dict(),
+                "download": None if fmt == "zarr" else f"/api/file?path={p.relative_to(root)}"}
 
     @app.get("/api/ds/{i}/figure")
     def figure(i: str, fmt: str = "png", frame: int = 0, lo: Optional[float] = None, hi: Optional[float] = None,

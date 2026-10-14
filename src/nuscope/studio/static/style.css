@@ -59,6 +59,21 @@ button, input, select { font: inherit; color: inherit; }
 .menu-list button { display: grid; text-align: left; gap: 1px; background: none; border: 0; padding: 7px 10px; border-radius: var(--r-sm); cursor: pointer; }
 .menu-list button:hover { background: var(--accent-soft); }
 .menu-list small { color: var(--muted); }
+.menu-foot { border-top: 1px solid var(--line); margin-top: 4px; padding: 8px 10px 4px; font-size: 11.5px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.menu-foot svg, .seal-head svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.menu-foot a { color: var(--accent); cursor: pointer; }
+/* integrity seal */
+.seal { border-left: 3px solid var(--muted); }
+.seal.signed, .seal.sealed { border-left-color: var(--ok); } .seal.tampered { border-left-color: var(--err); }
+.seal-head { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.seal.signed .seal-head, .seal.sealed .seal-head { color: var(--ok); } .seal.tampered .seal-head { color: var(--err); }
+.checks { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.checks span { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--surface-3); }
+.checks .y { color: var(--ok); } .checks .n { color: var(--err); background: color-mix(in srgb, var(--err) 14%, transparent); }
+.signer { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 12px; }
+.signer small { color: var(--muted); grid-column: 1 / -1; }
+.signer code, .seal code { font-size: 11px; background: var(--surface-3); padding: 0 4px; border-radius: 3px; }
+.tag-ok { color: var(--ok); font-size: 11px; } .tag-warn { color: var(--warn); font-size: 11px; } .tag-err { color: var(--err); font-size: 11px; }
 
 /* ------------------------------------------------------------ segmented + inputs */
 .seg { display: inline-flex; gap: 2px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r); padding: 2px; }
@@ -240,3 +255,4 @@ table.t th:first-child, table.t td:first-child { text-align: left; }
   #dock, #dock:has(#pickpane:not([hidden])) { grid-template-columns: 1fr; }
   .st-right, .chip { display: none; }
 }
+.link { color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }

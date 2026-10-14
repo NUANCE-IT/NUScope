@@ -22,9 +22,11 @@
     <div class="menu">
       <button id="save-btn" class="btn" disabled><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span>Save</span></button>
       <div class="menu-list" hidden>
-        <button data-save="nxs"><b>NeXus / HDF5</b><small>.nxs · data, metadata and history</small></button>
+        <button data-save="h5"><b>HDF5</b><small>.h5 · opens in h5py, HDFView, MATLAB</small></button>
+        <button data-save="nxs"><b>NeXus</b><small>.nxs · the same HDF5 layout, NeXus extension</small></button>
         <button data-save="tif"><b>TIFF</b><small>.tif · calibrated, metadata embedded</small></button>
         <button data-save="zarr"><b>Zarr</b><small>.zarr · for very large data</small></button>
+        <div class="menu-foot" id="sign-note"></div>
       </div>
     </div>
     <div class="menu">

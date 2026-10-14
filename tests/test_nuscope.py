@@ -208,6 +208,8 @@ def test_ro_crate(tmp_path):
     assert {"Dataset", "File", "CreateAction", "Person", "Organization", "SoftwareApplication"} <= types
     root = next(x for x in g if x["@id"] == "./")
     assert root["hasPart"] == [{"@id": "sample_A.nxs"}] and (tmp_path / "crate" / "sample_A.nxs").exists()
+    f = next(x for x in g if x["@id"] == "sample_A.nxs")
+    assert len(f["nuscope:seal"]) == 64 and f["nuscope:integrity"] in ("sealed", "signed")
 
 
 # ------------------------------------------------------------------ Globus (mocked services)
@@ -382,3 +384,118 @@ def test_studio_api(tmp_path):
     crate = c.post("/api/crate", json={"ids": [i], "title": "grid test"}).json()
     assert c.get(crate["download"]).status_code == 200
     assert c.get("/api/file", params={"path": "../../etc/passwd"}).status_code in (400, 403, 404)
+
+
+# ------------------------------------------------------------------ integrity: hash chain, seals, signatures
+@pytest.fixture(autouse=True)
+def keyhome(tmp_path, monkeypatch):
+    """Every test gets its own NUScope home, so no real signing key is ever read or written."""
+    monkeypatch.setenv("NUSCOPE_HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("NUSCOPE_KEY_PASSPHRASE", raising=False)
+    return tmp_path / "home"
+
+
+def _sample(tmp_path):
+    p = tmp_path / "quanta.tif"
+    tifffile.imwrite(p, disks((48, 64)), extratags=[(34682, "s", 0, THERMO_INI, False)])
+    return an.denoise(ns.load(p), method="gaussian", strength=1.0)
+
+
+def test_history_is_a_hash_chain(tmp_path):
+    d = _sample(tmp_path)
+    acts = d.provenance.activities
+    assert all(a.digest for a in acts) and acts[1].prev == [acts[0].digest]
+    assert d.provenance.check_chain() == (True, [])
+    acts[0].params["crop_databar"] = False                    # rewrite history
+    ok, problems = d.provenance.check_chain()
+    assert not ok and "changed after it was recorded" in problems[0]
+
+
+def test_merged_histories_stay_chained(tmp_path):
+    a = _sample(tmp_path)
+    b = an.bin_image(a, 2)
+    c = a.derive(a.numpy())
+    c.provenance.record("test.branch", {})                       # c and b now branch from a
+    c.provenance.merge(b.provenance)
+    c.provenance.record("test.combine", {}, used=[])
+    assert len(c.provenance.activities[-1].prev) == 2           # follows both branches
+    assert c.provenance.check_chain()[0]
+
+
+@pytest.mark.parametrize("ext", [".h5", ".nxs", ".zarr", ".tif"])
+def test_seal_round_trip_unsigned(tmp_path, keyhome, ext):
+    out = ns.save(_sample(tmp_path), tmp_path / f"s{ext}")
+    r = ns.verify(out)
+    assert r.status == "sealed" and all(r.checks.values()) and not r.signatures
+    d = ns.load(out)
+    assert d.integrity.status == "sealed"
+    assert d.provenance.activities[-1].params["integrity"] == "sealed" and d.provenance.check_chain()[0]
+
+
+def test_h5_is_plain_hdf5_with_seal_summary(tmp_path, keyhome):
+    import h5py
+    ns.integrity.create_key("Ada Lovelace")
+    out = ns.save(_sample(tmp_path), tmp_path / "s.h5")
+    with h5py.File(out, "r") as f:
+        assert f["entry/data/data"].shape == (48, 64)
+        assert len(f["entry/data/data"].attrs["sha256"]) == 64
+        assert "Ada Lovelace" in f.attrs["nuscope_signed_by"] and len(f.attrs["nuscope_seal"]) == 64
+
+
+def test_signed_seal_and_tampering(tmp_path, keyhome):
+    import h5py
+    k = ns.integrity.create_key("Ada Lovelace", orcid="https://orcid.org/0000-0000-0000-0000")
+    assert (keyhome / "keys" / "nuscope_ed25519.pem").stat().st_mode & 0o077 == 0     # private key: owner only
+    out = ns.save(_sample(tmp_path), tmp_path / "s.h5")
+    r = ns.verify(out)
+    assert r.status == "signed" and r.signatures[0]["fingerprint"] == k.fingerprint and r.signatures[0]["trusted"]
+
+    with h5py.File(out, "r+") as f:                              # change one pixel
+        f["entry/data/data"][0, 0] += 1
+    with pytest.warns(UserWarning, match="changed after it was sealed"):
+        d = ns.load(out)
+    assert d.integrity.status == "tampered" and d.integrity.checks["data"] is False
+
+    out2 = ns.save(_sample(tmp_path), tmp_path / "m.h5")
+    with h5py.File(out2, "r+") as f:                             # edit the metadata
+        n = f["entry/nuscope"]
+        m = json.loads(n["metadata"][()]); m["beam"]["voltage_kV"] = 30
+        del n["metadata"]; n["metadata"] = json.dumps(m)
+    r = ns.verify(out2)
+    assert r.status == "tampered" and r.checks == {**r.checks, "metadata": False, "data": True}
+
+    out3 = ns.save(_sample(tmp_path), tmp_path / "p.h5")
+    with h5py.File(out3, "r+") as f:                             # forge the signer's name
+        n = f["entry/nuscope"]
+        seal = json.loads(n["seal"][()]); seal["signatures"][0]["signer"]["name"] = "Someone Else"
+        del n["seal"]; n["seal"] = json.dumps(seal)
+    r = ns.verify(out3)
+    assert r.status == "tampered" and not r.signatures[0]["valid"]
+
+
+def test_cosign_and_trust(tmp_path, keyhome, monkeypatch):
+    ns.integrity.create_key("Ada Lovelace")
+    out = ns.save(_sample(tmp_path), tmp_path / "s.tif")
+    monkeypatch.setenv("NUSCOPE_HOME", str(tmp_path / "facility"))
+    fac = ns.integrity.create_key("NUANCE facility")
+    r = ns.integrity.cosign(out, role="facility")
+    assert [s["name"] for s in r.signatures] == ["Ada Lovelace", "NUANCE facility"] and r.status == "signed"
+    assert [s["trusted"] for s in r.signatures] == [False, True]   # Ada's key is unknown here
+    with pytest.raises(ValueError):
+        ns.integrity.cosign(out)                                   # one signature per key
+    monkeypatch.setenv("NUSCOPE_HOME", str(keyhome))
+    ns.integrity.trust(fac.to_dict())
+    assert all(s["trusted"] for s in ns.verify(out).signatures)
+    assert ns.load(out).numpy().shape == (48, 64)
+
+
+def test_cli_verify_sign_keys(tmp_path, keyhome, capsys):
+    from nuscope.cli import main
+    assert main(["keys", "create", "Ada Lovelace"]) == 0
+    src = tmp_path / "quanta.tif"
+    tifffile.imwrite(src, disks((48, 64)), extratags=[(34682, "s", 0, THERMO_INI, False)])
+    assert main(["convert", str(src), str(tmp_path / "q.h5")]) == 0
+    assert main(["verify", str(tmp_path / "q.h5")]) == 0
+    assert "SIGNED AND INTACT" in capsys.readouterr().out
+    assert main(["keys", "export", str(tmp_path / "ada.pub.json")]) == 0
+    assert json.loads((tmp_path / "ada.pub.json").read_text())["name"] == "Ada Lovelace"

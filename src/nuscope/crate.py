@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from .dataset import Dataset
+from .integrity import verify
 from .provenance import FACILITY, now, sha256_file
 
 
@@ -34,9 +35,15 @@ def write_crate(datasets: Iterable[Dataset], folder: str | Path, *, title: str, 
         path = folder / fname
         save(ds, path, overwrite=True)
         parts.append({"@id": fname})
+        rep = verify(path)
         things[fname] = {"@id": fname, "@type": "File", "name": ds.name, "encodingFormat": _mime(fmt),
                          "contentSize": path.stat().st_size, "sha256": sha256_file(path),
-                         "description": "; ".join(_summary(ds))}
+                         "description": "; ".join(_summary(ds)),
+                         # the seal inside the file: hashes of data, metadata and history, and who signed them
+                         "nuscope:seal": rep.seal_id, "nuscope:integrity": rep.status,
+                         "nuscope:signedBy": [{"name": g["name"], "fingerprint": g["fingerprint"],
+                                               **({"orcid": g["orcid"]} if g.get("orcid") else {})}
+                                              for g in rep.signatures if g["valid"]]}
         prov = ds.provenance
         for ag in prov.agents.values():
             if ag.kind == "person":

@@ -36,6 +36,7 @@ class Dataset:
     provenance: Provenance = field(default_factory=Provenance)
     name: str = ""
     signal: str = "image"                       # image | spectrum | spectrum_image | diffraction | stack
+    integrity: Any = field(default=None, repr=False, compare=False)   # integrity.Report when read from a NUScope file
 
     def __post_init__(self):
         if len(self.axes) != np.ndim(self.data):
