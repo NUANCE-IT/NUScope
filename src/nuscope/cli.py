@@ -102,7 +102,18 @@ def main(argv=None) -> int:
     for name in plugins:
         sub.add_parser(name, help=f"{name} module (see: nuscope {name} --help)")
     a = ap.parse_args(argv)
+    try:
+        return _run(a)
+    except FileNotFoundError as e:
+        print(f"nuscope: file not found: {e.filename or e}", file=sys.stderr)
+    except (FileExistsError, ValueError, ImportError, PermissionError) as e:
+        print(f"nuscope: {e}", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("nuscope: interrupted", file=sys.stderr)
+    return 2
 
+
+def _run(a) -> int:
     import nuscope as ns
     if a.cmd == "info":
         for d in ns.load_all(a.source):

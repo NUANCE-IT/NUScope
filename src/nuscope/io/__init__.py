@@ -53,7 +53,7 @@ def load_all(source, *, crop_databar: bool = True, lazy: bool = False, **kw) -> 
         return items
     path = Path(s).expanduser()
     if not path.exists():
-        raise FileNotFoundError(path)
+        raise FileNotFoundError(2, "No such file", str(path))
     started = now()
     ext = path.suffix.lower()
     if ext in NUSCOPE_EXT or (ext in (".h5", ".hdf5") and _is_nuscope_h5(path)):
