@@ -113,7 +113,7 @@ def thermo_from_ini(sec: dict) -> dict:
     md.put(m, "acquisition.line_integration", _f(scan, "LineIntegration"))
     md.put(m, "acquisition.frame_integration", _f(scan, "FrameIntegration"))
     if user.get("Date"):
-        md.put(m, "acquisition.datetime", f"{user.get('Date')} {user.get('Time', '')}".strip())
+        md.put(m, "acquisition.datetime", md.iso_datetime(user.get("Date"), user.get("Time")))
     md.put(m, "acquisition.operator", user.get("User"))
     for k, key, f in (("x_mm", "StageX", 1e3), ("y_mm", "StageY", 1e3), ("z_mm", "StageZ", 1e3),
                       ("tilt_deg", "StageT", 180 / np.pi), ("rotation_deg", "StageR", 180 / np.pi)):
@@ -170,7 +170,7 @@ def read_zeiss(path: Path, text: str):
     if "Mag" in z:
         md.put(m, "optics.magnification", _zeiss_mag(z["Mag"]))
     md.put(m, "detector.name", z.get("Signal A"))
-    md.put(m, "acquisition.datetime", " ".join(x for x in (z.get("Date"), z.get("Time")) if x) or None)
+    md.put(m, "acquisition.datetime", md.iso_datetime(z.get("Date"), z.get("Time")))
     md.put(m, "acquisition.operator", z.get("User Name"))
     ps = None
     if "Pixel Size" in z:
@@ -215,7 +215,7 @@ def read_hitachi(path: Path, side: Path, crop_databar: bool = True):
     md.put(m, "optics.working_distance_mm", wd / 1e3 if wd and wd > 100 else wd)
     md.put(m, "optics.magnification", md.number(h.get("Magnification")))
     md.put(m, "detector.name", h.get("SignalName"))
-    md.put(m, "acquisition.datetime", " ".join(x for x in (h.get("Date"), h.get("Time")) if x) or None)
+    md.put(m, "acquisition.datetime", md.iso_datetime(h.get("Date"), h.get("Time")))
     for k, key, f in (("x_mm", "StagePositionX", 1e-6), ("y_mm", "StagePositionY", 1e-6), ("z_mm", "StagePositionZ", 1e-6),
                       ("rotation_deg", "StagePositionR", 1.0), ("tilt_deg", "StagePositionT", 1.0)):
         v = md.number(h.get(key))
@@ -254,7 +254,7 @@ def read_jeol(path: Path, side: Path):
     md.put(m, "optics.magnification", md.number(j.get("CM_MAG")))
     md.put(m, "optics.working_distance_mm", md.number(j.get("SM_WD") or j.get("CM_WD")))
     md.put(m, "detector.name", j.get("CM_SIGNAL"))
-    md.put(m, "acquisition.datetime", " ".join(x for x in (j.get("CM_DATE"), j.get("CM_TIME")) if x) or None)
+    md.put(m, "acquisition.datetime", md.iso_datetime(j.get("CM_DATE"), j.get("CM_TIME")))
     md.put(m, "sample.name", j.get("CM_TITLE"))
     ps = None
     bar, marker = md.number(j.get("SM_MICRON_BAR")), j.get("SM_MICRON_MARKER")

@@ -84,6 +84,8 @@ def load_all(source, *, crop_databar: bool = True, lazy: bool = False, **kw) -> 
 
 
 def _finish(ds: Dataset, path: Path, op: str, params: dict, started: str) -> Dataset:
+    from ..datacite import link_instrument
+    link_instrument(ds.metadata)      # registered instrument DOI, when nuance-datacite is installed
     p = Provenance()
     src = p.add_file(path)
     inst = p.add_instrument(ds.metadata)

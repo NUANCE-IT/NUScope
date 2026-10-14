@@ -5,6 +5,8 @@
     nuscope provenance <file> [--prov-json out.json]   history of a NUScope file
     nuscope verify <files...>                          check seals, hash chains and signatures
     nuscope sign <files...> [--role ...]               add your signature to sealed files
+    nuscope cite <file> --title T [--draft]            DataCite metadata for a dataset DOI (linked to the
+                                                       instrument DOI and the seal); --draft creates a draft DOI
     nuscope keys create "Name" [--orcid ...] | show | export <file> | trust <file.json> | untrust <fp> | list
                    (your EMDataBridge identity; same as `emdb identity ...`)
     nuscope crate <out folder> <files...> --title ...  RO-Crate package for a repository deposit
@@ -56,6 +58,13 @@ def main(argv=None) -> int:
     p = sub.add_parser("sign", help="add your signature to sealed NUScope files")
     p.add_argument("files", nargs="+")
     p.add_argument("--role", default="co-signer", help="e.g. author, co-signer, facility, reviewer")
+    p = sub.add_parser("cite", help="DataCite dataset-DOI metadata for a sealed file (--draft to register)")
+    p.add_argument("file")
+    p.add_argument("--title", required=True)
+    p.add_argument("--description", default="")
+    p.add_argument("--url", help="landing page the DOI resolves to")
+    p.add_argument("--out", help="write the DataCite JSON here")
+    p.add_argument("--draft", action="store_true", help="create a DRAFT DOI (DataCite credentials in .env)")
     k = sub.add_parser("keys", help="your signing key and the keys you trust")
     ks = k.add_subparsers(dest="kcmd", required=True)
     x = ks.add_parser("create", help="create your Ed25519 signing key")
@@ -137,6 +146,24 @@ def _run(a) -> int:
             print(f"{f}\n{ns.integrity.cosign(f, role=a.role)}\n")
     elif a.cmd == "keys":
         return _keys(a)
+    elif a.cmd == "cite":
+        from . import datacite
+        if a.draft:
+            try:
+                from dotenv import load_dotenv
+                load_dotenv(Path.cwd() / ".env")
+            except ImportError:
+                pass
+            doi = datacite.register_draft(a.file, title=a.title, description=a.description, url=a.url)
+            print(f"draft DOI {doi}; recorded next to the seal of {a.file}")
+        else:
+            attrs = datacite.dataset_payload(a.file, title=a.title, description=a.description, url=a.url)
+            text = json.dumps({"data": {"type": "dois", "attributes": attrs}}, indent=2)
+            if a.out:
+                Path(a.out).write_text(text)
+                print(f"wrote {a.out}")
+            else:
+                print(text)
     elif a.cmd == "provenance":
         d = ns.load(a.source)
         print("\n".join(d.provenance.lineage()))

@@ -108,6 +108,7 @@ nav:
       - Saving and sharing: guide/saving.md
       - Provenance: guide/provenance.md
       - Integrity and signatures: guide/integrity.md
+      - DOIs (DataCite): guide/datacite.md
       - NUScope Studio: guide/studio.md
       - Globus at NUANCE: guide/globus.md
       - NUANCE-MCP: guide/nuance-mcp.md
@@ -126,5 +127,6 @@ nav:
       - Globus: api/globus.md
       - RO-Crate: api/crate.md
       - NUANCE-MCP plugin: api/mcp.md
+      - DataCite: api/datacite.md
   - Changelog: changelog.md
   - Credits: credits.md

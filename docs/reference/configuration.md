@@ -10,3 +10,5 @@
 | `NUSCOPE_USER`, `NUSCOPE_USER_NAME`, `NUSCOPE_ORCID` | login name | the person in provenance when you have no identity |
 | `NUSCOPE_ACQUISITION_DIR` | `~/NUScope/acquisitions` | files saved from NUANCE-MCP acquisitions |
 | `NUSCOPE_SAMPLE` | unset | sample name recorded for NUANCE-MCP acquisitions |
+| `NUANCE_INSTRUMENTS` | `~/.nuance/instruments.json` | extra or overriding instrument DOIs |
+| `DATACITE_REPOSITORY_ID`, `DATACITE_PASSWORD`, `DATACITE_PREFIX`, `DATACITE_ENVIRONMENT` | `NU.NUANCE`, unset, unset, `test` | `nuscope cite --draft` |

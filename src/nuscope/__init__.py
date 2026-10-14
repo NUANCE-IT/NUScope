@@ -12,7 +12,7 @@ NUANCE Center, Northwestern University.
 Created by Roberto dos Reis (@rmsreis), NUANCE Center. Original instrument
 loaders by Nathaniel Kabat.
 """
-__version__ = "0.4.1"
+__version__ = "0.5.0"
 
 from .dataset import Axis, Dataset  # noqa: E402,F401
 from .io import formats, load, load_all, save  # noqa: E402,F401

@@ -51,6 +51,38 @@ def with_unit(s: str) -> tuple[Optional[float], str]:
     return (float(m.group(1)), m.group(2)) if m else (None, "")
 
 
+_DATE_FORMATS = ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%d.%m.%Y", "%d %b %Y", "%d %B %Y", "%b %d %Y", "%Y%m%d")
+_TIME_FORMATS = ("%H:%M:%S", "%H:%M", "%I:%M:%S %p", "%I:%M %p", "%H:%M:%S.%f", "")
+
+
+def iso_datetime(date: Any, time: Any = None) -> Optional[str]:
+    """ISO 8601 from a vendor date and time ('12/06/2025' '17:39:19' -> '2025-12-06T17:39:19').
+
+    Slashed dates with the year last are read month first, as Thermo Fisher and Hitachi
+    software write them. Returns the input unchanged (as text) if it cannot be parsed, so
+    nothing is lost; the vendor's own value always stays in ``original_metadata``."""
+    from datetime import datetime
+    if date in (None, ""):
+        return None
+    d, t = str(date).strip(), str(time or "").strip()
+    if not t and (" " in d or "T" in d):
+        try:
+            return datetime.fromisoformat(d).isoformat()
+        except ValueError:
+            pass
+    for df in _DATE_FORMATS:
+        for tf in _TIME_FORMATS:
+            text, fmt = (f"{d} {t}", f"{df} {tf}") if t and tf else (d, df)
+            if t and not tf:
+                continue
+            try:
+                v = datetime.strptime(text, fmt)
+            except ValueError:
+                continue
+            return v.date().isoformat() if not t else v.isoformat()
+    return f"{d} {t}".strip()
+
+
 def get(md: dict, dotted: str, default=None):
     cur: Any = md
     for k in dotted.split("."):
@@ -97,4 +129,4 @@ def summary(md: dict) -> list[str]:
     return [f"{k}: {v}" for k, v in rows if v]
 
 
-__all__ = ["empty", "get", "put", "merge", "number", "with_unit", "to_nm", "summary", "SECTIONS"]
+__all__ = ["empty", "get", "put", "merge", "number", "with_unit", "to_nm", "summary", "iso_datetime", "SECTIONS"]
