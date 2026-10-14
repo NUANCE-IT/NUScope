@@ -3,7 +3,7 @@
 **Read, analyze, save and trace electron-microscopy data at the NUANCE Center, Northwestern University.**
 
 Created by **Roberto dos Reis ([@rmsreis](https://github.com/rmsreis))** · NUANCE Center, Northwestern University ·
-[NUANCE-IT/NUScope](https://github.com/NUANCE-IT/NUScope)
+[NUANCE-IT/NUScope](https://github.com/NUANCE-IT/NUScope) · **[Documentation](https://nuance-it.github.io/NUScope/)**
 
 NUScope is the data layer of the NUScope program. One `load()` opens any NUANCE microscope file, locally or
 straight from a Globus collection, and returns calibrated data with one metadata schema for every instrument.
@@ -36,9 +36,12 @@ print("\n".join(img.provenance.lineage()))
 ## Install
 
 ```bash
-uv venv --python 3.12 && source .venv/bin/activate
-uv pip install -e ".[all]"        # core + Globus + Studio + plotting
+pip install nuscope                 # core
+pip install "nuscope[all]"          # + Studio, Globus, plotting
+emdb identity create "Your Name" --orcid 0000-0000-0000-0000   # once: your signing identity
 ```
+
+For development: `uv pip install -e ".[all,dev]"` in a clone.
 
 ## NUScope Studio
 
@@ -69,7 +72,7 @@ machine and nothing leaves it.
 ```bash
 nuscope info sample.dm4                        # what is in a file (any supported format, or a globus:// URL)
 nuscope convert sample.tif sample.h5           # convert, keeping metadata and provenance; sealed (and signed)
-nuscope keys create "Your Name" --orcid https://orcid.org/...   # once: your signing key
+emdb identity create "Your Name" --orcid ...    # once: your identity (or: nuscope keys create)
 nuscope verify sample.h5                       # data, calibration, metadata, history, signatures
 nuscope sign sample.h5 --role facility         # add a countersignature
 nuscope provenance sample.nxs --prov-json prov.json
@@ -93,12 +96,14 @@ Provenance is only useful if it can be trusted, so NUScope makes it tamper-evide
   the data (dtype, shape and bytes), the calibration, the metadata (normalized and original vendor metadata) and
   the complete history. In HDF5 it is stored at `/entry/nuscope/seal`, with a readable summary in the root
   attributes `nuscope_seal` and `nuscope_signed_by`.
-- **Signatures.** `nuscope keys create` makes an Ed25519 key. The private key stays in `~/.nuscope/keys`,
-  readable only by you; set `NUSCOPE_KEY_PASSPHRASE` to encrypt it. Once you have a key, every save is signed.
-  Others can add their own signature to the same seal (`nuscope sign`), for example the facility countersigning
-  an acquisition. The signature covers the seal and the signer's name, ORCID, role and time.
-- **Trust.** Share your public key with `nuscope keys export me.pub.json`. Others trust it with
-  `nuscope keys trust me.pub.json`. Valid signatures from keys you have not trusted are reported as such.
+- **Signatures.** Signing uses the researcher identity of [EMDataBridge](https://github.com/NUANCE-IT/EMDataBridge),
+  shared with NUScope-TOMO and NUANCE-MCP: your name, a validated ORCID iD and an Ed25519 key, created once with
+  `emdb identity create`. The private key stays in `~/.emdatabridge/identity`, readable only by you; set
+  `EMDATABRIDGE_KEY_PASSPHRASE` to encrypt it. Once you have an identity, every save is signed. Others can add
+  their own signature to the same seal (`nuscope sign`), for example the facility countersigning an acquisition.
+  The signature covers the seal and the signer's name, ORCID, role and time.
+- **Trust.** Share your public identity with `emdb identity export me.json`. Others trust it with
+  `emdb identity trust me.json`. Valid signatures from keys you have not trusted are reported as such.
 - **Verification.** `ns.load()` checks the seal and puts the report in `ds.integrity`. It warns if the data,
   calibration, metadata or history changed after sealing, and records the result in the dataset's history.
   `ns.verify(path)` and `nuscope verify` check a file without loading it. Studio shows the result in the
@@ -107,6 +112,14 @@ Provenance is only useful if it can be trusted, so NUScope makes it tamper-evide
 A seal proves that a file is unchanged since it was sealed, and a signature proves who sealed it. Neither proves
 that the original measurement was right. Instrument files are fingerprinted on first read; to pin data at the
 source, sign on the acquisition PC.
+
+## NUANCE-MCP
+
+With [NUANCE-MCP](https://github.com/NUANCE-IT/NUANCE-MCP) installed, NUScope loads as a plugin: every
+acquisition an LLM makes through the MCP server is saved as a sealed, signed `.h5` (calibrated, with the column
+state as metadata and the tool call as provenance), and the model gets `nuscope_describe`, `nuscope_verify`,
+`nuscope_history`, `nuscope_analyze`, `nuscope_list` and `nuscope_identity`. See the
+[NUANCE-MCP guide](https://nuance-it.github.io/NUScope/guide/nuance-mcp/).
 
 ## Globus at NUANCE
 
@@ -122,7 +135,7 @@ Provenance of a Globus read records the collection id, the path, when it was fet
 
 ## Tests
 
-`pytest` runs 30 tests. They cover:
+`pytest` runs 33 tests. They cover:
 
 - the vendor readers on synthetic instrument files (Thermo Fisher with data bar, Quanta copied sidecar, Hitachi,
   JEOL, Zeiss) and MRC through RosettaSciIO;
@@ -134,7 +147,8 @@ Provenance of a Globus read records the collection id, the path, when it was fet
 - RO-Crate export;
 - the Globus listing, download, cache and transfer paths with mocked services;
 - the command line;
-- the Studio web API (open, view, analyse, save, figure, RO-Crate).
+- the Studio web API (open, view, analyse, save, figure, RO-Crate);
+- the shared EMDataBridge identity (including keys made by NUScope 0.3) and the NUANCE-MCP plugin.
 
 The readers have also been checked on real NUANCE files (Hitachi S-3400 TIFF + TXT, Gatan DM4 ADF, EELS SI
 and 4D diffraction).
@@ -143,7 +157,7 @@ and 4D diffraction).
 
 NUScope is created and led by Roberto dos Reis (@rmsreis). The first NUScope instrument loaders and the PyQt
 viewer (`NUScopeGUI_v0.py`, `ImageLoadLibraries_v0.py`, kept in this repository) were written by Nathaniel Kabat.
-The package in `src/nuscope` (v0.3) generalizes those loaders and adds the metadata schema, provenance, integrity, analysis,
+The package in `src/nuscope` (v0.4) generalizes those loaders and adds the metadata schema, provenance, integrity, analysis,
 saving and Globus layers.
 
 ## License

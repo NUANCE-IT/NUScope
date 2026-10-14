@@ -1,0 +1,15 @@
+/* NUScope docs: Material's deep purple shifted to Northwestern purple #4E2A84. */
+:root {
+  --md-primary-fg-color:        #4E2A84;
+  --md-primary-fg-color--light: #6B40A8;
+  --md-primary-fg-color--dark:  #361D5C;
+  --md-accent-fg-color:         #B6ACD1;
+}
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:        #6B40A8;
+  --md-primary-fg-color--light: #8A66C4;
+  --md-primary-fg-color--dark:  #4E2A84;
+  --md-accent-fg-color:         #C9B7F0;
+}
+.md-typeset table:not([class]) th { white-space: nowrap; }
+.md-typeset .grid.cards > ul > li { border-color: var(--md-primary-fg-color--light); }

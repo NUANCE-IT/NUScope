@@ -1,0 +1,6 @@
+# Documentation toolchain for NUScope (kept apart from the package extras).
+mkdocs>=1.6,<2   # MkDocs 2 drops the plugin system Material and mkdocstrings need
+mkdocs-material>=9.5
+mkdocs-autorefs>=1.0
+mkdocstrings[python]>=0.26
+pymdown-extensions>=10.0

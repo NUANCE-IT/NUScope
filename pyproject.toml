@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nuscope"
-version = "0.3.0"
+version = "0.4.0"
 description = "Read, analyze, save and trace electron-microscopy data at the NUANCE Center, Northwestern University"
 readme = "README.md"
 license = "MIT"
@@ -14,7 +14,13 @@ authors = [{ name = "Roberto dos Reis", email = "robertomsreis@gmail.com" }]
 maintainers = [{ name = "Roberto dos Reis (@rmsreis)" }]
 keywords = ["electron microscopy", "SEM", "TEM", "STEM", "FIB", "EDS", "provenance", "FAIR", "Globus", "NUANCE"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
@@ -38,11 +44,14 @@ dependencies = [
 globus = ["globus-sdk>=3.46"]
 studio = ["fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "matplotlib>=3.7", "imageio>=2.30"]
 plot = ["matplotlib>=3.7"]
-dev = ["pytest", "httpx", "globus-sdk>=3.46", "matplotlib", "mrcfile", "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "imageio>=2.30"]
+dev = ["pytest", "httpx", "build", "twine", "globus-sdk>=3.46", "matplotlib", "mrcfile", "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "imageio>=2.30"]
 all = ["globus-sdk>=3.46", "matplotlib>=3.7", "mrcfile", "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "imageio>=2.30"]
 
 [project.urls]
 Homepage = "https://github.com/NUANCE-IT/NUScope"
+Documentation = "https://nuance-it.github.io/NUScope/"
+Changelog = "https://nuance-it.github.io/NUScope/changelog/"
+Issues = "https://github.com/NUANCE-IT/NUScope/issues"
 Author = "https://github.com/rmsreis"
 
 [project.scripts]
@@ -51,6 +60,10 @@ nuscope = "nuscope.cli:main"
 # NUANCE-MCP loads NUScope's tools and saves every acquisition as a sealed .h5 (see nuscope.mcp)
 [project.entry-points."nuance_mcp.plugins"]
 nuscope = "nuscope.mcp:register"
+
+[tool.hatch.build.targets.sdist]
+include = ["src/nuscope", "tests", "docs", "examples", "README.md", "LICENSE", "AUTHORS.md", "CITATION.cff",
+           "mkdocs.yml", "requirements-docs.txt"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nuscope"]

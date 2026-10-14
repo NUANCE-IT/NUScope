@@ -1,0 +1,130 @@
+# NUScope documentation. Build locally:
+#     pip install -r requirements-docs.txt -e .
+#     mkdocs serve            # live preview
+#     mkdocs build --strict   # what CI runs
+# Published to GitHub Pages by .github/workflows/docs.yml on every push to master.
+
+site_name: NUScope
+site_description: >-
+  Read, analyze, save and trace electron-microscopy data at the NUANCE Center,
+  Northwestern University, with tamper-evident provenance.
+site_url: https://nuance-it.github.io/NUScope/
+site_author: Roberto dos Reis
+copyright: Copyright &copy; 2020–2026 NUScope · created by Roberto dos Reis (@rmsreis), NUANCE Center, Northwestern University
+
+repo_name: NUANCE-IT/NUScope
+repo_url: https://github.com/NUANCE-IT/NUScope
+edit_uri: edit/master/docs/
+
+strict: true
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  features:
+    - content.code.copy
+    - content.tabs.link
+    - navigation.indexes
+    - navigation.instant
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: deep purple
+      toggle: {icon: material/weather-night, name: Switch to dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: deep purple
+      toggle: {icon: material/weather-sunny, name: Switch to light mode}
+
+extra_css: [assets/extra.css]
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/NUANCE-IT/NUScope
+    - icon: fontawesome/solid/microscope
+      link: https://www.nuance.northwestern.edu
+  generator: false
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc: {permalink: true, title: On this page}
+  - pymdownx.details
+  - pymdownx.highlight: {anchor_linenums: true}
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed: {alternate_style: true}
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            show_source: false
+            members_order: source
+            separate_signature: true
+            show_signature_annotations: true
+            merge_init_into_class: true
+            filters: ["!^_"]
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: installation.md
+      - Quickstart: quickstart.md
+  - User guide:
+      - Reading files: guide/reading.md
+      - Metadata: guide/metadata.md
+      - Analysis: guide/analysis.md
+      - Saving and sharing: guide/saving.md
+      - Provenance: guide/provenance.md
+      - Integrity and signatures: guide/integrity.md
+      - NUScope Studio: guide/studio.md
+      - Globus at NUANCE: guide/globus.md
+      - NUANCE-MCP: guide/nuance-mcp.md
+  - Reference:
+      - Command line: reference/cli.md
+      - File layout: reference/file-layout.md
+      - Configuration: reference/configuration.md
+  - API:
+      - nuscope: api/nuscope.md
+      - Dataset: api/dataset.md
+      - Input and output: api/io.md
+      - Analysis: api/analyze.md
+      - Metadata: api/metadata.md
+      - Provenance: api/provenance.md
+      - Integrity: api/integrity.md
+      - Globus: api/globus.md
+      - RO-Crate: api/crate.md
+      - NUANCE-MCP plugin: api/mcp.md
+  - Changelog: changelog.md
+  - Credits: credits.md
