@@ -40,6 +40,12 @@ from nuscope.crate import write_crate
 write_crate([clean], "deposit", title="Ti alloy BSE", authors=[{"name": "Your Name", "orcid": "https://orcid.org/..."}])
 ```
 
+## The whole workflow in a notebook
+
+[`examples/nuscope_workflow.ipynb`](https://github.com/NUANCE-IT/NUScope/blob/master/examples/nuscope_workflow.ipynb)
+runs every step on a synthetic Hitachi S-3400 image, or on your own file: read, analyze, save, verify, trace,
+cite and package.
+
 ## Command line and Studio
 
 ```bash
