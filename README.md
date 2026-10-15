@@ -43,6 +43,12 @@ emdb identity create "Your Name" --orcid 0000-0000-0000-0000   # once: your sign
 
 For development: `uv pip install -e ".[all,dev]"` in a clone.
 
+## Notebook
+
+[`examples/nuscope_workflow.ipynb`](examples/nuscope_workflow.ipynb) walks through the whole workflow on a
+synthetic Hitachi S-3400 image (or your own file): read, analyze in nm, save with a seal, verify and catch a
+modified file, trace the history, build DataCite metadata linked to the instrument, and package an RO-Crate.
+
 ## NUScope Studio
 
 ```bash
