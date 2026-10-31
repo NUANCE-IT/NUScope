@@ -5,6 +5,7 @@
     nuscope provenance <file> [--prov-json out.json]   history of a NUScope file
     nuscope verify <files...>                          check seals, hash chains and signatures
     nuscope sign <files...> [--role ...]               add your signature to sealed files
+    nuscope tag <files or folders...> [-r]             signed tag beside instrument files, which stay untouched
     nuscope cite <file> --title T [--draft]            DataCite metadata for a dataset DOI (linked to the
                                                        instrument DOI and the seal); --draft creates a draft DOI
     nuscope keys create "Name" [--orcid ...] | show | export <file> | trust <file.json> | untrust <fp> | list
@@ -55,6 +56,12 @@ def main(argv=None) -> int:
     p = sub.add_parser("verify", help="check seals, hash chains and signatures")
     p.add_argument("files", nargs="+")
     p.add_argument("--json", action="store_true")
+    p = sub.add_parser("tag", help="write a signed tag beside instrument files (they stay untouched)")
+    p.add_argument("paths", nargs="+")
+    p.add_argument("-r", "--recursive", action="store_true")
+    p.add_argument("--role", default="facility", help="role of the signer")
+    p.add_argument("--no-sign", action="store_true", help="hashes only, even if you have a key")
+    p.add_argument("--overwrite", action="store_true", help="replace existing tags")
     p = sub.add_parser("sign", help="add your signature to sealed NUScope files")
     p.add_argument("files", nargs="+")
     p.add_argument("--role", default="co-signer", help="e.g. author, co-signer, facility, reviewer")
@@ -141,6 +148,16 @@ def _run(a) -> int:
             bad += not r.ok
             print(json.dumps(r.to_dict(), indent=2) if a.json else f"{f}\n{r}\n")
         return 1 if bad else 0
+    elif a.cmd == "tag":
+        from .tag import tag_many
+        res = tag_many(a.paths, recursive=a.recursive, role=a.role, overwrite=a.overwrite,
+                       sign=False if a.no_sign else None)
+        for r in res:
+            if r.state != "skipped":
+                print(f"{r.state:8s} {r.path}" + (f"  ({r.detail})" if r.detail else ""))
+        count = {s: sum(r.state == s for r in res) for s in ("tagged", "skipped", "changed", "failed")}
+        print(", ".join(f"{n} {s}" for s, n in count.items()))
+        return 1 if count["changed"] or count["failed"] else 0
     elif a.cmd == "sign":
         for f in a.files:
             print(f"{f}\n{ns.integrity.cosign(f, role=a.role)}\n")

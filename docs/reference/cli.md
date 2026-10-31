@@ -5,6 +5,8 @@ nuscope info <file | globus://collection/path> [--json]   what is in a file
 nuscope convert <in> <out.h5|.nxs|.zarr|.tif> [--overwrite] [--no-sign]
 nuscope verify <files...> [--json]                        seals, hash chains, signatures (exit 1 if any fails)
 nuscope sign <files...> [--role ROLE]                     add your signature to intact sealed files
+nuscope tag <files or folders...> [-r] [--role R] [--no-sign] [--overwrite]
+                                                          signed tag beside instrument files; exit 1 if any changed or failed
 nuscope cite <file> --title T [--description D] [--url U] [--out F] [--draft]
                                                           DataCite dataset-DOI metadata; --draft registers a draft
 nuscope provenance <file> [--prov-json out.json]          the history of a NUScope file
