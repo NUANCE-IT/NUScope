@@ -624,6 +624,8 @@ def test_cite_builds_linked_payload_and_registers_draft(tmp_path, keyhome):
         in a["alternateIdentifiers"]
     assert a["creators"][0]["nameIdentifiers"][0]["nameIdentifier"].endswith("0002-1825-0097")
     assert a["dates"] == [{"date": "2025-12-06", "dateType": "Collected"}]
+    ack = [d["description"] for d in a["descriptions"] if d["descriptionType"] == "Other"]
+    assert len(ack) == 1 and "SCR_026361" in ack[0]
 
     class Fake:                       # stands in for nuance_datacite.DataCite (no network)
         environment = "test"

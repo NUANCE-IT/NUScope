@@ -10,8 +10,8 @@ With ``nuance-datacite`` installed (``pip install "nuscope[datacite]"``):
   data. Pixels are never modified.
 * **Citing** a sealed file builds DataCite metadata for a dataset DOI linked to
   the instrument (``IsCollectedBy``), to the exact file (seal id and SHA-256)
-  and to its creators (ORCID iDs from the file's signatures), and can create a
-  *draft* DOI. The DOI is then written next to the seal (not into it: the seal
+  and to its creators (ORCID iDs from the file's signatures), states the
+  acknowledgment the facility asks for, and can create a *draft* DOI. The DOI is then written next to the seal (not into it: the seal
   must not change), and the DataCite record carries the seal id, so each
   points to the other.
 
@@ -99,13 +99,22 @@ def dataset_payload(path, *, title: str, description: str = "", creators: Option
                 raise ValueError("no creators: sign the file, create an identity, or pass creators=[...]")
             creators = [dc.payloads.creator(me.name, me.orcid)]
     file_sha = sha256_file(path) if path.is_file() else None
-    return dc.payloads.dataset_attributes(
+    extra = {}
+    if "acknowledgment" in dc.payloads.dataset_attributes.__kwdefaults__:      # nuance-datacite 0.1.1+
+        extra["acknowledgment"] = _acknowledgments(dc, instruments)
+    return dc.payloads.dataset_attributes(**extra,
         title=title, description=description, creators=creators, instruments=instruments,
         seal_id=rep.seal_id, file_name=path.name, file_sha256=file_sha,
         file_size=path.stat().st_size if path.is_file() else None,
         file_format=_FORMATS.get(path.suffix.lower()) or mimetypes.guess_type(path.name)[0],
         collected=md.get(meta, "acquisition.datetime"), technique=meta.get("technique"),
         subjects=[s for s in (*subjects, md.get(meta, "sample.name")) if s], url=url, doi=doi, prefix=prefix)
+
+
+def _acknowledgments(dc, instruments) -> str:
+    """The acknowledgment text of each instrument in the seal, without repeats."""
+    texts = [getattr(dc.registry.get(i["doi"]), "acknowledgment", "") for i in instruments]
+    return " ".join(dict.fromkeys(t for t in texts if t))
 
 
 def register_draft(path, *, title: str, client=None, **kw) -> str:
