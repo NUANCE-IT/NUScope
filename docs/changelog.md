@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.5.0 — unreleased
+## 0.5.1 — 2026-10-31
+
+- `nuscope cite` includes the acknowledgment text of each instrument in the dataset's DataCite record.
+
+## 0.5.0 — 2026-10-14
 
 - **DataCite.** Instrument DOIs from the NUANCE registry (nuance-datacite) are recorded in metadata,
   provenance and the seal manifest; `nuscope cite` builds dataset-DOI metadata linked to the instrument

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nuscope"
-version = "0.5.0"
+version = "0.5.1"
 description = "Read, analyze, save and trace electron-microscopy data at the NUANCE Center, Northwestern University"
 readme = "README.md"
 license = "MIT"
@@ -41,11 +41,11 @@ dependencies = [
 
 [project.optional-dependencies]
 globus = ["globus-sdk>=3.46"]
-datacite = ["nuance-datacite>=0.1"]
+datacite = ["nuance-datacite>=0.1.1"]
 studio = ["fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "matplotlib>=3.7", "imageio>=2.30"]
 plot = ["matplotlib>=3.7"]
-dev = ["pytest", "httpx", "build", "twine", "nuance-datacite>=0.1", "globus-sdk>=3.46", "matplotlib", "mrcfile", "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "imageio>=2.30"]
-all = ["nuance-datacite>=0.1", "globus-sdk>=3.46", "matplotlib>=3.7", "mrcfile", "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "imageio>=2.30"]
+dev = ["pytest", "httpx", "build", "twine", "nuance-datacite>=0.1.1", "globus-sdk>=3.46", "matplotlib", "mrcfile", "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "imageio>=2.30"]
+all = ["nuance-datacite>=0.1.1", "globus-sdk>=3.46", "matplotlib>=3.7", "mrcfile", "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9", "imageio>=2.30"]
 
 [project.urls]
 Homepage = "https://github.com/NUANCE-IT/NUScope"

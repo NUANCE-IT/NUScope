@@ -52,6 +52,7 @@ Only intact, sealed files can be cited. The DataCite metadata links:
 | the exact file | `alternateIdentifiers`: `sha256:<seal id>` (type `NUScope seal SHA-256`) and the file's SHA-256 |
 | the people | `creators` with ORCID iDs, taken from the file's valid author signatures (or your identity) |
 | when | `dates`, `Collected`, from the acquisition date |
+| credit | `descriptions`, the acknowledgment text of each instrument, from the registry |
 
 `--draft` creates a **draft** DOI with your DataCite credentials (`DATACITE_REPOSITORY_ID`,
 `DATACITE_PASSWORD`, `DATACITE_PREFIX`, `DATACITE_ENVIRONMENT`, from the environment or a `.env` file;
