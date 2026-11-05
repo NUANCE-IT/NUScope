@@ -93,7 +93,32 @@ def _finish(ds: Dataset, path: Path, op: str, params: dict, started: str) -> Dat
     p.record(op, params, used=[src], generated=[out], started=started, instrument=inst)
     ds.provenance = p
     ds.metadata.setdefault("facility", md.empty()["facility"])
+    _check_tag(ds, path)
     return ds
+
+
+def _check_tag(ds: Dataset, path: Path):
+    """If the instrument file has a tag beside it, verify it and record the result."""
+    from ..tag import tag_path, verify_tag
+    tag = tag_path(path)
+    if not tag.exists():
+        return
+    report = verify_tag(tag)
+    ds.integrity = report
+    if report.status == "tampered":
+        warnings.warn(f"{path.name} does not match its tag: " + "; ".join(report.problems), stacklevel=3)
+    ds.provenance.amend_last(params={"tag": report.seal_id, "integrity": report.status})
+
+
+def is_nuscope_file(path) -> bool:
+    """Does this file carry its seal inside (as opposed to an instrument's own file)?"""
+    path = Path(path)
+    ext = path.suffix.lower()
+    if ext in NUSCOPE_EXT or ext == ".zarr" or (path.is_dir() and (path / "zarr.json").exists()):
+        return True
+    if ext in (".h5", ".hdf5"):
+        return _is_nuscope_h5(path)
+    return ext in (".tif", ".tiff") and _is_nuscope_tiff(path)
 
 
 def formats() -> list[str]:
@@ -327,4 +352,5 @@ def read_nuscope_tiff(path: Path) -> Dataset:
     return _open_document(path, *_tiff_document(path))
 
 
-__all__ = ["load", "load_all", "save", "formats", "read_nexus", "read_zarr", "read_document", "write_seal"]
+__all__ = ["load", "load_all", "save", "formats", "read_nexus", "read_zarr", "read_document", "write_seal",
+           "is_nuscope_file"]

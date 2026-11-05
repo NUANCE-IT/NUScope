@@ -108,6 +108,7 @@ nav:
       - Saving and sharing: guide/saving.md
       - Provenance: guide/provenance.md
       - Integrity and signatures: guide/integrity.md
+      - Tagging instrument files: guide/tags.md
       - DOIs (DataCite): guide/datacite.md
       - NUScope Studio: guide/studio.md
       - Globus at NUANCE: guide/globus.md
@@ -129,5 +130,6 @@ nav:
       - RO-Crate: api/crate.md
       - NUANCE-MCP plugin: api/mcp.md
       - DataCite: api/datacite.md
+      - Tags: api/tag.md
   - Changelog: changelog.md
   - Credits: credits.md
