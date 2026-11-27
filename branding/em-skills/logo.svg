@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="em-skills logo">
+ <title>em-skills</title><desc>A honeycomb registry of skills. By Roberto dos Reis (@rmsreis), NUANCE Center.</desc>
+ <rect width="64" height="64" rx="14" fill="#166534"/>
+  <polygon points="32.00,8.50 42.39,14.50 42.39,26.50 32.00,32.50 21.61,26.50 21.61,14.50" fill="#FFC520" stroke="#FFC520" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="20.80,29.20 30.59,34.85 30.59,46.15 20.80,51.80 11.01,46.15 11.01,34.85" fill="none" stroke="#ffffff" stroke-width="4" stroke-linejoin="round"/>
+  <polygon points="43.20,29.20 52.99,34.85 52.99,46.15 43.20,51.80 33.41,46.15 33.41,34.85" fill="#ffffff" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
+</svg>

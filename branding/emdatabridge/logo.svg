@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="EMDataBridge logo">
+ <title>EMDataBridge</title><desc>A bridge between formats and people. By Roberto dos Reis (@rmsreis), NUANCE Center.</desc>
+ <rect width="64" height="64" rx="14" fill="#B45309"/>
+  <path d="M12 43Q32 3 52 43" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
+  <path d="M6 43h52" stroke="#ffffff" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M22 29v14M32 23v20M42 29v14" stroke="#ffffff" stroke-width="3.2"/>
+  <path d="M14 43v11M50 43v11" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+</svg>
