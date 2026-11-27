@@ -582,7 +582,7 @@ S3400_DOI = "10.82427/nuance.epic.sem.s3400.2025.000001"
 def _s3400_like(tmp_path):
     p = tmp_path / "ti.tif"
     tifffile.imwrite(p, disks((48, 64)))
-    (tmp_path / "ti.txt").write_text("[SemImageFile]\nInstructName=S-3400\nSerialNumber=1234\nDate=12/06/2025\n"
+    (tmp_path / "ti.txt").write_text("[SemImageFile]\nInstructName=S-3400\nSerialNumber=340634-05\nDate=12/06/2025\n"
                                      "Time=17:39:19\nAcceleratingVoltage=30000 Volt\nPixelSize=396.875\n")
     return p
 
@@ -648,3 +648,76 @@ def test_cite_refuses_modified_files(tmp_path, keyhome):
         f["entry/data/data"][0, 0] += 1
     with pytest.raises(ValueError, match="tampered"):
         datacite.dataset_payload(p, title="x")
+
+
+# ------------------------------------------------------------------ tags beside instrument files
+def test_tag_leaves_the_file_untouched_and_verifies(tmp_path, keyhome):
+    pytest.importorskip("nuance_datacite")
+    from nuscope.tag import tag_file, tag_path
+    ns.integrity.create_key("EPIC data service")
+    p = _s3400_like(tmp_path)
+    before = p.read_bytes()
+    tag = tag_file(p)
+    assert p.read_bytes() == before
+    assert [f["name"] for f in tag["manifest"]["files"]] == ["ti.tif", "ti.txt"]
+    assert tag["manifest"]["instruments"][0]["doi"] == S3400_DOI
+    r = ns.verify(p)
+    assert r.status == "signed" and r.instruments[0]["doi"] == S3400_DOI and all(r.checks.values())
+    assert r.signatures[0]["role"] == "facility"
+    assert ns.verify(tag_path(p)).status == "signed"
+    d = ns.load(p)
+    assert d.integrity.status == "signed" and d.provenance.activities[0].params["integrity"] == "signed"
+    assert d.provenance.check_chain()[0]
+
+
+def test_changed_file_or_edited_tag_is_caught(tmp_path, keyhome):
+    pytest.importorskip("nuance_datacite")
+    from nuscope.tag import tag_file, tag_path, tag_many
+    ns.integrity.create_key("EPIC data service")
+    p = _s3400_like(tmp_path)
+    tag_file(p)
+    side = p.with_suffix(".txt")
+    side.write_text(side.read_text().replace("30000", "15000"))
+    r = ns.verify(p)
+    assert r.status == "tampered" and r.checks == {"ti.tif": True, "ti.txt": False}
+    res = tag_many([tmp_path])                         # the watcher reports it and keeps the evidence
+    assert [x.state for x in res] == ["changed"]
+    with pytest.warns(UserWarning, match="does not match its tag"):
+        ns.load(p)
+    tag_many([tmp_path], overwrite=True)
+    t = tag_path(p)
+    doc = json.loads(t.read_text()); doc["manifest"]["instrument"]["serial"] = "999"
+    t.write_text(json.dumps(doc))
+    assert ns.verify(p).status == "tampered"           # the signature no longer matches
+
+
+def test_doi_needs_the_exact_serial(tmp_path, keyhome):
+    pytest.importorskip("nuance_datacite")
+    from nuscope.tag import tag_file
+    p = _s3400_like(tmp_path)
+    side = p.with_suffix(".txt")
+    side.write_text(side.read_text().replace("340634-05", "111111-01"))
+    assert ns.load(p).metadata["instrument"].get("doi") is None
+    assert tag_file(p)["manifest"]["instruments"] == []
+    side.write_text(side.read_text().replace("SerialNumber=111111-01\n", ""))
+    assert tag_file(p, overwrite=True)["manifest"]["instruments"] == []    # no serial, no claim
+
+
+def test_tag_folder_is_repeatable_and_cli(tmp_path, keyhome, capsys):
+    from nuscope.cli import main
+    p = _s3400_like(tmp_path)
+    (tmp_path / "sub").mkdir()
+    tifffile.imwrite(tmp_path / "sub" / "b.tif", disks((48, 64)))
+    (tmp_path / "bad.tif").write_bytes(b"not a tiff")
+    assert main(["tag", str(tmp_path), "-r"]) == 1                          # bad.tif is reported
+    out = capsys.readouterr().out
+    assert "2 tagged" in out and "1 failed" in out
+    (tmp_path / "bad.tif").unlink()
+    assert main(["tag", str(tmp_path), "-r"]) == 0
+    assert "2 skipped" in capsys.readouterr().out
+    assert main(["verify", str(p)]) == 0
+
+
+def test_untagged_instrument_file_reports_unsealed(tmp_path, keyhome):
+    r = ns.verify(_s3400_like(tmp_path))
+    assert r.status == "unsealed" and not r.ok

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0 — unreleased
+
+- **Tags.** `nuscope tag` writes a signed record beside instrument files, which stay untouched; `nuscope verify` and
+  `ns.load()` check it. An instrument DOI is recorded only for an exact serial-number match.
+- `nuscope verify` reports `unsealed` for an instrument file with no tag.
+
 ## 0.5.1 — 2026-10-31
 
 - `nuscope cite` includes the acknowledgment text of each instrument in the dataset's DataCite record.

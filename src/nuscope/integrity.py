@@ -117,6 +117,14 @@ def sign_seal(seal: dict, *, role: str = "author", passphrase: Optional[str] = N
     return entry
 
 
+def make_tag_seal(tag_manifest: dict, *, sign: Optional[bool] = None, role: str = "facility") -> dict:
+    """Seal a tag manifest; ``sign`` works as in :func:`make_seal`."""
+    tag = {"manifest": tag_manifest, "signatures": []}
+    if sign or (sign is None and my_key() is not None):
+        sign_seal(tag, role=role)
+    return tag
+
+
 def make_seal(data, doc: dict, *, sign: Optional[bool] = None, role: str = "author") -> dict:
     """Seal a document. ``sign=None`` signs when you have a key, ``True`` requires one, ``False`` never signs."""
     seal = {"manifest": manifest(data, doc), "signatures": []}
@@ -173,6 +181,20 @@ def verify_signature(seal: dict, entry: dict) -> bool:
     return identity.verify({"seal": seal_id(seal)}, entry).valid
 
 
+def verify_signatures(seal: dict) -> tuple[list, list]:
+    """Check every signature on a seal or tag. Returns (signature reports, problems)."""
+    tr = identity.trusted()
+    sigs, problems = [], []
+    for e in seal.get("signatures", []):
+        s = e["signer"]
+        valid = verify_signature(seal, e)
+        sigs.append({k: s.get(k) for k in ("name", "orcid", "fingerprint", "role", "signed_at")}
+                    | {"valid": valid, "trusted": valid and s["fingerprint"] in tr})
+        if not valid:
+            problems.append(f"the signature of {s.get('name')} does not match")
+    return sigs, problems
+
+
 def verify_doc(data, doc: dict) -> Report:
     """Check data and document against the seal stored in the document."""
     seal = doc.get("seal")
@@ -192,16 +214,9 @@ def verify_doc(data, doc: dict) -> Report:
     }
     problems = [f"{k} changed after sealing" for k, v in checks.items() if not v and k != "history chain"]
     problems += chain_problems
-    tr = identity.trusted()
-    sigs = []
-    for e in seal.get("signatures", []):
-        s = e["signer"]
-        valid = verify_signature(seal, e)
-        sigs.append({k: s.get(k) for k in ("name", "orcid", "fingerprint", "role", "signed_at")}
-                    | {"valid": valid, "trusted": valid and s["fingerprint"] in tr})
-        if not valid:
-            problems.append(f"the signature of {s.get('name')} does not match")
-    intact = all(checks.values()) and all(s["valid"] for s in sigs)
+    sigs, bad = verify_signatures(seal)
+    problems += bad
+    intact = all(checks.values()) and not bad
     status = ("signed" if sigs else "sealed") if intact else "tampered"
     return Report(status, seal_id=seal_id(seal), checks=checks, signatures=sigs, problems=problems,
                   sealed_at=m.get("created"), instruments=m.get("instruments", []),
@@ -209,10 +224,17 @@ def verify_doc(data, doc: dict) -> Report:
 
 
 def verify(path) -> Report:
-    """Verify a NUScope file (.nxs, .h5, .zarr or .tif) without loading it as a dataset."""
-    from .io import read_document
-    data, doc = read_document(Path(path))
-    return verify_doc(data, doc)
+    """Verify a NUScope file (.nxs, .h5, .zarr or .tif), or an instrument file by its tag, without loading it."""
+    from .io import is_nuscope_file, read_document
+    from .tag import TAG_SUFFIX, tag_path, verify_tag
+    path = Path(path)
+    if path.name.endswith(TAG_SUFFIX):
+        return verify_tag(path)
+    if is_nuscope_file(path):
+        return verify_doc(*read_document(path))
+    if tag_path(path).exists():
+        return verify_tag(tag_path(path))
+    return Report("unsealed", problems=["no seal or tag: an instrument file nobody has tagged yet"])
 
 
 def cosign(path, *, role: str = "co-signer", passphrase: Optional[str] = None) -> Report:
